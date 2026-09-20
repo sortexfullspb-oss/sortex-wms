@@ -16,8 +16,8 @@ function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
     });
 
     return () => subscription.unsubscribe();
@@ -110,11 +110,14 @@ function Clients() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [search, setSearch] = useState("");
 
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadClients();
@@ -139,7 +142,34 @@ function Clients() {
     setLoading(false);
   }
 
-  async function addClient(event) {
+  function openClient(client) {
+    setSelectedClient(client);
+    setName(client.name || "");
+    setContact(client.contact_name || "");
+    setPhone(client.phone || "");
+    setError("");
+    setShowForm(false);
+  }
+
+  function openNewClient() {
+    setSelectedClient(null);
+    setName("");
+    setContact("");
+    setPhone("");
+    setError("");
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setSelectedClient(null);
+    setName("");
+    setContact("");
+    setPhone("");
+    setError("");
+  }
+
+  async function saveClient(event) {
     event.preventDefault();
     setError("");
 
@@ -148,23 +178,41 @@ function Clients() {
       return;
     }
 
-    const { error } = await supabase.from("clients").insert({
-      name: name.trim(),
-      contact_name: contact.trim() || null,
-      phone: phone.trim() || null,
-    });
+    setSaving(true);
 
-    if (error) {
-      setError("Не удалось добавить клиента");
-      console.error(error);
-      return;
+    if (selectedClient) {
+      const { error } = await supabase
+        .from("clients")
+        .update({
+          name: name.trim(),
+          contact_name: contact.trim() || null,
+          phone: phone.trim() || null,
+        })
+        .eq("id", selectedClient.id);
+
+      if (error) {
+        setError("Не удалось сохранить изменения");
+        console.error(error);
+        setSaving(false);
+        return;
+      }
+    } else {
+      const { error } = await supabase.from("clients").insert({
+        name: name.trim(),
+        contact_name: contact.trim() || null,
+        phone: phone.trim() || null,
+      });
+
+      if (error) {
+        setError("Не удалось добавить клиента");
+        console.error(error);
+        setSaving(false);
+        return;
+      }
     }
 
-    setName("");
-    setContact("");
-    setPhone("");
-    setShowForm(false);
-
+    setSaving(false);
+    closeForm();
     await loadClients();
   }
 
@@ -172,12 +220,109 @@ function Clients() {
     await supabase.auth.signOut();
   }
 
+  const filteredClients = clients.filter((client) => {
+    const text = `${client.name || ""} ${
+      client.contact_name || ""
+    } ${client.phone || ""}`.toLowerCase();
+
+    return text.includes(search.toLowerCase());
+  });
+
+  if (showForm || selectedClient) {
+    return (
+      <div style={styles.app}>
+        <header style={styles.header}>
+          <div>
+            <div style={styles.logo}>SORTEX WMS</div>
+            <div style={styles.headerSubtitle}>
+              Система учета склада
+            </div>
+          </div>
+
+          <button style={styles.logoutButton} onClick={logout}>
+            Выйти
+          </button>
+        </header>
+
+        <main style={styles.main}>
+          <button style={styles.backButton} onClick={closeForm}>
+            ← Назад к клиентам
+          </button>
+
+          <div style={styles.formCard}>
+            <h1 style={styles.heading}>
+              {selectedClient
+                ? "Карточка клиента"
+                : "Новый клиент"}
+            </h1>
+
+            <p style={styles.muted}>
+              {selectedClient
+                ? "Редактирование данных клиента"
+                : "Добавление нового клиента"}
+            </p>
+
+            <form onSubmit={saveClient}>
+              <label style={styles.label}>
+                Название компании *
+              </label>
+
+              <input
+                style={styles.input}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Название компании"
+                required
+              />
+
+              <label style={styles.label}>
+                Контактное лицо
+              </label>
+
+              <input
+                style={styles.input}
+                value={contact}
+                onChange={(e) => setContact(e.target.value)}
+                placeholder="Имя контактного лица"
+              />
+
+              <label style={styles.label}>Телефон</label>
+
+              <input
+                style={styles.input}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+372 ..."
+              />
+
+              {error && <div style={styles.error}>{error}</div>}
+
+              <button
+                style={styles.button}
+                type="submit"
+                disabled={saving}
+              >
+                {saving
+                  ? "Сохранение..."
+                  : selectedClient
+                  ? "Сохранить изменения"
+                  : "Создать клиента"}
+              </button>
+            </form>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.app}>
       <header style={styles.header}>
         <div>
           <div style={styles.logo}>SORTEX WMS</div>
-          <div style={styles.headerSubtitle}>Система учета склада</div>
+          <div style={styles.headerSubtitle}>
+            Система учета склада
+          </div>
         </div>
 
         <button style={styles.logoutButton} onClick={logout}>
@@ -194,73 +339,37 @@ function Clients() {
             </p>
           </div>
 
-          <button
-            style={styles.addButton}
-            onClick={() => {
-              setError("");
-              setShowForm(!showForm);
-            }}
-          >
-            {showForm ? "Закрыть" : "+ Добавить клиента"}
+          <button style={styles.addButton} onClick={openNewClient}>
+            + Добавить клиента
           </button>
         </div>
 
-        {showForm && (
-          <form style={styles.formCard} onSubmit={addClient}>
-            <h2 style={styles.formTitle}>Новый клиент</h2>
+        <div style={styles.searchCard}>
+          <input
+            style={styles.searchInput}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по названию, контакту или телефону..."
+          />
+        </div>
 
-            <label style={styles.label}>Название *</label>
-
-            <input
-              style={styles.input}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Название компании"
-              required
-            />
-
-            <label style={styles.label}>Контактное лицо</label>
-
-            <input
-              style={styles.input}
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="Имя контактного лица"
-            />
-
-            <label style={styles.label}>Телефон</label>
-
-            <input
-              style={styles.input}
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+372 ..."
-            />
-
-            {error && <div style={styles.error}>{error}</div>}
-
-            <button style={styles.button} type="submit">
-              Сохранить клиента
-            </button>
-          </form>
-        )}
-
-        {!showForm && error && (
-          <div style={styles.error}>{error}</div>
-        )}
+        {error && <div style={styles.error}>{error}</div>}
 
         <div style={styles.tableCard}>
           {loading ? (
             <p>Загрузка клиентов...</p>
-          ) : clients.length === 0 ? (
+          ) : filteredClients.length === 0 ? (
             <div style={styles.empty}>
               <div style={styles.emptyTitle}>
-                Клиентов пока нет
+                {clients.length === 0
+                  ? "Клиентов пока нет"
+                  : "Ничего не найдено"}
               </div>
 
               <div style={styles.muted}>
-                Нажмите «+ Добавить клиента», чтобы создать первого
-                клиента.
+                {clients.length === 0
+                  ? "Добавьте первого клиента."
+                  : "Измените поисковый запрос."}
               </div>
             </div>
           ) : (
@@ -271,18 +380,30 @@ function Clients() {
                     <th style={styles.th}>Название</th>
                     <th style={styles.th}>Контактное лицо</th>
                     <th style={styles.th}>Телефон</th>
+                    <th style={styles.th}>Действие</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {clients.map((client) => (
+                  {filteredClients.map((client) => (
                     <tr key={client.id}>
                       <td style={styles.td}>{client.name}</td>
+
                       <td style={styles.td}>
                         {client.contact_name || "—"}
                       </td>
+
                       <td style={styles.td}>
                         {client.phone || "—"}
+                      </td>
+
+                      <td style={styles.td}>
+                        <button
+                          style={styles.editButton}
+                          onClick={() => openClient(client)}
+                        >
+                          Открыть
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -400,6 +521,15 @@ const styles = {
     cursor: "pointer",
   },
 
+  backButton: {
+    border: "none",
+    background: "transparent",
+    padding: "0",
+    marginBottom: "20px",
+    fontSize: "16px",
+    cursor: "pointer",
+  },
+
   logoutButton: {
     border: "1px solid rgba(255,255,255,0.3)",
     borderRadius: "8px",
@@ -409,16 +539,29 @@ const styles = {
     cursor: "pointer",
   },
 
+  searchCard: {
+    background: "#ffffff",
+    padding: "16px",
+    borderRadius: "12px",
+    marginBottom: "20px",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
+  },
+
+  searchInput: {
+    width: "100%",
+    padding: "13px",
+    border: "1px solid #d1d5db",
+    borderRadius: "8px",
+    fontSize: "16px",
+    boxSizing: "border-box",
+  },
+
   formCard: {
     background: "#ffffff",
     padding: "24px",
     borderRadius: "12px",
-    marginBottom: "24px",
+    maxWidth: "700px",
     boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
-  },
-
-  formTitle: {
-    marginTop: 0,
   },
 
   tableCard: {
@@ -436,7 +579,7 @@ const styles = {
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: "600px",
+    minWidth: "700px",
   },
 
   th: {
@@ -451,15 +594,16 @@ const styles = {
     borderBottom: "1px solid #e5e7eb",
   },
 
-  empty: {
-    textAlign: "center",
-    padding: "50px 20px",
+  editButton: {
+    border: "1px solid #d1d5db",
+    borderRadius: "7px",
+    padding: "8px 12px",
+    background: "#ffffff",
+    cursor: "pointer",
   },
 
-  emptyTitle: {
-    fontSize: "20px",
-    fontWeight: "bold",
-    marginBottom: "8px",
+  formTitle: {
+    marginTop: 0,
   },
 
   label: {
@@ -496,6 +640,17 @@ const styles = {
     padding: "10px",
     borderRadius: "8px",
     marginBottom: "15px",
+  },
+
+  empty: {
+    textAlign: "center",
+    padding: "50px 20px",
+  },
+
+  emptyTitle: {
+    fontSize: "20px",
+    fontWeight: "bold",
+    marginBottom: "8px",
   },
 };
 
