@@ -2,20 +2,33 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
 
+import "./styles.css";
+
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
-const CHAMPAGNE = "#C8B58A";
-const CHAMPAGNE_LIGHT = "#E8DEC8";
-const GRAPHITE = "#242321";
-const GRAPHITE_2 = "#302E2A";
-const CREAM = "#F7F5F0";
-const WHITE = "#FFFDF9";
-const BORDER = "#DED9CF";
-const TEXT = "#292825";
-const MUTED = "#77736B";
+const money = (value) =>
+  new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "RUB",
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
+
+const dateRu = (value) => {
+  if (!value) return "—";
+  const [y, m, d] = value.split("-");
+  return `${d}.${m}.${y}`;
+};
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+const monthStart = () => {
+  const d = new Date();
+  d.setDate(1);
+  return d.toISOString().slice(0, 10);
+};
 
 const tariffLabels = {
   small: "Малый",
@@ -24,3348 +37,2305 @@ const tariffLabels = {
   storage: "Хранение",
 };
 
-const operationLabels = {
-  small: "Малый",
-  medium: "Средний",
-  large: "Большой",
-};
-
-function money(value) {
-  return `${Number(value || 0).toLocaleString("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ₽`;
-}
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function firstDayOfMonth() {
-  const d = new Date();
-  d.setDate(1);
-  return d.toISOString().slice(0, 10);
-}
-
-function formatDate(value) {
-  if (!value) return "—";
-  return new Date(`${value}T00:00:00`).toLocaleDateString("ru-RU");
-}
-
 function App() {
   const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+
+  const [page, setPage] = useState("home");
+  const [mobileMore, setMobileMore] = useState(false);
+
+  const [clients, setClients] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [tariffs, setTariffs] = useState([]);
+  const [systemTariffs, setSystemTariffs] = useState([]);
+  const [shipments, setShipments] = useState([]);
+  const [storageRecords, setStorageRecords] = useState([]);
+  const [auditLog, setAuditLog] = useState([]);
+
+  const [loadingData, setLoadingData] = useState(false);
+
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [search, setSearch] = useState("");
+
+  const [showClientForm, setShowClientForm] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
+
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+
+  const [showTariffForm, setShowTariffForm] = useState(false);
+
+  const [showOperationForm, setShowOperationForm] = useState(false);
+
+  const [clientForm, setClientForm] = useState({
+    name: "",
+    contact_name: "",
+    phone: "",
+    email: "",
+    legal_name: "",
+    inn: "",
+    notes: "",
+  });
+
+  const [productForm, setProductForm] = useState({
+    client_id: "",
+    sku: "",
+    name: "",
+    size_type: "medium",
+    length_cm: "",
+    width_cm: "",
+    height_cm: "",
+    weight_kg: "",
+    notes: "",
+  });
+
+  const [tariffForm, setTariffForm] = useState({
+    client_id: "",
+    product_id: "",
+    tariff_type: "small",
+    price_rub: "",
+    effective_from: today(),
+    notes: "",
+  });
+
+  const [operationForm, setOperationForm] = useState({
+    client_id: "",
+    product_id: "",
+    shipment_date: today(),
+    quantity: 1,
+    tariff_type: "small",
+    note: "",
+    operation_type: "shipment",
+  });
+
+  const [periodFrom, setPeriodFrom] = useState(monthStart());
+  const [periodTo, setPeriodTo] = useState(today());
+
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    loadSession();
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoadingAuth(false);
+    });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  async function loadSession() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  useEffect(() => {
+    if (!session) return;
+    loadAll();
+  }, [session]);
 
-    setSession(session);
-    setLoading(false);
+  const showNotice = (message) => {
+    setNotice(message);
+    setTimeout(() => setNotice(""), 3000);
+  };
+
+  async function loadAll() {
+    setLoadingData(true);
+
+    const [
+      clientsRes,
+      productsRes,
+      tariffsRes,
+      systemTariffsRes,
+      shipmentsRes,
+      storageRes,
+      auditRes,
+    ] = await Promise.all([
+      supabase.from("clients").select("*").order("name"),
+      supabase
+        .from("products")
+        .select("*, clients(name)")
+        .order("name"),
+      supabase
+        .from("tariffs")
+        .select("*, clients(name), products(name, sku)")
+        .order("effective_from", { ascending: false }),
+      supabase.from("system_tariffs").select("*").order("tariff_type"),
+      supabase
+        .from("shipments")
+        .select("*, clients(name), products(name, sku)")
+        .order("shipment_date", { ascending: false }),
+      supabase
+        .from("storage_records")
+        .select("*, clients(name)")
+        .order("start_date", { ascending: false }),
+      supabase
+        .from("audit_log")
+        .select("*")
+        .order("changed_at", { ascending: false })
+        .limit(100),
+    ]);
+
+    if (!clientsRes.error) setClients(clientsRes.data || []);
+    if (!productsRes.error) setProducts(productsRes.data || []);
+    if (!tariffsRes.error) setTariffs(tariffsRes.data || []);
+    if (!systemTariffsRes.error)
+      setSystemTariffs(systemTariffsRes.data || []);
+    if (!shipmentsRes.error) setShipments(shipmentsRes.data || []);
+    if (!storageRes.error) setStorageRecords(storageRes.data || []);
+    if (!auditRes.error) setAuditLog(auditRes.data || []);
+
+    setLoadingData(false);
   }
-
-  if (loading) {
-    return <div style={styles.loadingScreen}>SORTEX</div>;
-  }
-
-  if (!session) {
-    return <Login />;
-  }
-
-  return <Dashboard session={session} />;
-}
-
-function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function login(event) {
-    event.preventDefault();
-    setError("");
-    setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError("Не удалось выполнить вход. Проверьте email и пароль.");
-    }
-
-    setLoading(false);
-  }
-
-  return (
-    <div style={styles.loginPage}>
-      <div style={styles.loginCard}>
-        <div style={styles.logoMark}>S</div>
-
-        <div style={styles.brandLarge}>SORTEX</div>
-        <div style={styles.brandSubtitle}>WAREHOUSE ACCOUNTING</div>
-
-        <div style={{ height: 32 }} />
-
-        <h1 style={styles.loginTitle}>Вход в систему</h1>
-        <p style={styles.loginText}>
-          Учет услуг, тарифов и начислений
-        </p>
-
-        <form onSubmit={login}>
-          <label style={styles.label}>Email</label>
-          <input
-            style={styles.input}
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Введите email"
-            required
-          />
-
-          <label style={styles.label}>Пароль</label>
-          <input
-            style={styles.input}
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Введите пароль"
-            required
-          />
-
-          {error && <div style={styles.error}>{error}</div>}
-
-          <button style={styles.primaryButton} disabled={loading}>
-            {loading ? "Вход..." : "Войти"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function Dashboard({ session }) {
-  const [page, setPage] = useState("dashboard");
-  const [mobileMenu, setMobileMenu] = useState(false);
 
   async function logout() {
     await supabase.auth.signOut();
   }
 
-  const menu = [
-    { id: "dashboard", label: "Главная", icon: "⌂" },
-    { id: "clients", label: "Клиенты", icon: "♙" },
-    { id: "products", label: "Номенклатура", icon: "▦" },
-    { id: "tariffs", label: "Тарифы", icon: "₽" },
-    { id: "operations", label: "Операции", icon: "≡" },
-    { id: "payable", label: "К оплате", icon: "◇" },
-    { id: "history", label: "История", icon: "◷" },
-  ];
-
-  function navigate(id) {
-    setPage(id);
-    setMobileMenu(false);
+  function navigate(nextPage) {
+    setPage(nextPage);
+    setMobileMore(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  return (
-    <div style={styles.shell}>
-      <aside
-        style={{
-          ...styles.sidebar,
-          ...(mobileMenu ? styles.sidebarMobileOpen : {}),
-        }}
-      >
-        <div style={styles.sidebarBrand}>
-          <div style={styles.sidebarLogo}>S</div>
-          <div>
-            <div style={styles.sidebarTitle}>SORTEX</div>
-            <div style={styles.sidebarSub}>WMS</div>
-          </div>
-        </div>
-
-        <div style={styles.menuCaption}>РАБОЧАЯ ОБЛАСТЬ</div>
-
-        <nav>
-          {menu.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => navigate(item.id)}
-              style={{
-                ...styles.menuItem,
-                ...(page === item.id ? styles.menuItemActive : {}),
-              }}
-            >
-              <span style={styles.menuIcon}>{item.icon}</span>
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div style={styles.sidebarBottom}>
-          <div style={styles.accountBox}>
-            <div style={styles.accountDot} />
-            <div style={{ minWidth: 0 }}>
-              <div style={styles.accountLabel}>Система активна</div>
-              <div style={styles.accountEmail}>
-                {session.user.email}
-              </div>
-            </div>
-          </div>
-
-          <button style={styles.logoutSidebar} onClick={logout}>
-            Выйти
-          </button>
-        </div>
-      </aside>
-
-      <main style={styles.content}>
-        <header style={styles.topbar}>
-          <button
-            style={styles.mobileMenuButton}
-            onClick={() => setMobileMenu(!mobileMenu)}
-          >
-            ☰
-          </button>
-
-          <div>
-            <div style={styles.topbarTitle}>
-              {menu.find((x) => x.id === page)?.label}
-            </div>
-            <div style={styles.topbarSub}>
-              SORTEX WMS · финансовый учет услуг
-            </div>
-          </div>
-
-          <div style={styles.topbarRight}>
-            <div style={styles.statusBadge}>
-              <span style={styles.statusDot} />
-              Онлайн
-            </div>
-          </div>
-        </header>
-
-        <div style={styles.pageArea}>
-          {page === "dashboard" && <Home onNavigate={navigate} />}
-          {page === "clients" && <Clients />}
-          {page === "products" && <Products />}
-          {page === "tariffs" && <Tariffs />}
-          {page === "operations" && <Operations />}
-          {page === "payable" && <Payable />}
-          {page === "history" && <History />}
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function Home({ onNavigate }) {
-  const [from, setFrom] = useState(firstDayOfMonth());
-  const [to, setTo] = useState(today());
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    load();
-  }, [from, to]);
-
-  async function load() {
-    setLoading(true);
-
-    const { data, error } = await supabase.rpc("get_client_totals", {
-      p_from: from,
-      p_to: to,
+  function openNewClient() {
+    setEditingClient(null);
+    setClientForm({
+      name: "",
+      contact_name: "",
+      phone: "",
+      email: "",
+      legal_name: "",
+      inn: "",
+      notes: "",
     });
-
-    if (!error) {
-      setData(data || []);
-    }
-
-    setLoading(false);
+    setShowClientForm(true);
   }
 
-  const totals = useMemo(() => {
-    return data.reduce(
-      (acc, row) => {
-        acc.quantity += Number(row.shipment_quantity || 0);
-        acc.shipments += Number(row.shipment_total_rub || 0);
-        acc.storage += Number(row.storage_total_rub || 0);
-        acc.total += Number(row.total_rub || 0);
-        return acc;
-      },
-      { quantity: 0, shipments: 0, storage: 0, total: 0 }
-    );
-  }, [data]);
-
-  return (
-    <div>
-      <div style={styles.hero}>
-        <div>
-          <div style={styles.eyebrow}>ФИНАНСОВЫЙ КОНТРОЛЬ</div>
-          <h1 style={styles.pageTitle}>Добро пожаловать в SORTEX</h1>
-          <p style={styles.pageDescription}>
-            Все начисления по клиентам — в одном месте.
-          </p>
-        </div>
-
-        <div style={styles.periodBox}>
-          <div style={styles.periodLabel}>ПЕРИОД</div>
-
-          <div style={styles.periodInputs}>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              style={styles.dateInput}
-            />
-            <span>—</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              style={styles.dateInput}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div style={styles.statsGrid}>
-        <StatCard
-          title="Начислено"
-          value={money(totals.total)}
-          caption="за выбранный период"
-          accent
-        />
-
-        <StatCard
-          title="Услуги"
-          value={money(totals.shipments)}
-          caption={`${totals.quantity} единиц`}
-        />
-
-        <StatCard
-          title="Хранение"
-          value={money(totals.storage)}
-          caption="услуги хранения"
-        />
-
-        <StatCard
-          title="Клиенты"
-          value={data.length}
-          caption="активных клиентов"
-        />
-      </div>
-
-      <div style={styles.sectionHeader}>
-        <div>
-          <h2 style={styles.sectionTitle}>Клиенты</h2>
-          <p style={styles.sectionSubtitle}>
-            Начисления за выбранный период
-          </p>
-        </div>
-
-        <button
-          style={styles.secondaryButton}
-          onClick={() => onNavigate("operations")}
-        >
-          + Добавить операцию
-        </button>
-      </div>
-
-      <div style={styles.panel}>
-        {loading ? (
-          <Loading />
-        ) : data.length === 0 ? (
-          <Empty
-            title="Пока нет начислений"
-            text="Когда появятся операции, здесь будет финансовая сводка."
-          />
-        ) : (
-          <div style={styles.clientSummaryGrid}>
-            {data.map((row) => (
-              <div key={row.client_id} style={styles.summaryCard}>
-                <div style={styles.summaryTop}>
-                  <div style={styles.clientAvatar}>
-                    {(row.client_name || "?").slice(0, 1).toUpperCase()}
-                  </div>
-
-                  <div style={{ minWidth: 0 }}>
-                    <div style={styles.summaryName}>
-                      {row.client_name}
-                    </div>
-                    <div style={styles.summaryMeta}>
-                      {Number(row.shipment_quantity || 0)} ед. · услуги
-                    </div>
-                  </div>
-                </div>
-
-                <div style={styles.summaryAmount}>
-                  {money(row.total_rub)}
-                </div>
-
-                <div style={styles.summaryDetails}>
-                  <span>Услуги</span>
-                  <b>{money(row.shipment_total_rub)}</b>
-                </div>
-
-                <div style={styles.summaryDetails}>
-                  <span>Хранение</span>
-                  <b>{money(row.storage_total_rub)}</b>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ title, value, caption, accent }) {
-  return (
-    <div
-      style={{
-        ...styles.statCard,
-        ...(accent ? styles.statCardAccent : {}),
-      }}
-    >
-      <div style={styles.statTitle}>{title}</div>
-      <div style={styles.statValue}>{value}</div>
-      <div style={styles.statCaption}>{caption}</div>
-    </div>
-  );
-}
-
-function Clients() {
-  const [clients, setClients] = useState([]);
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
-
-  const [name, setName] = useState("");
-  const [legalName, setLegalName] = useState("");
-  const [inn, setInn] = useState("");
-  const [contact, setContact] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
-    setLoading(true);
-
-    const { data } = await supabase
-      .from("clients")
-      .select("*")
-      .order("name");
-
-    setClients(data || []);
-    setLoading(false);
+  function openEditClient(client) {
+    setEditingClient(client);
+    setClientForm({
+      name: client.name || "",
+      contact_name: client.contact_name || "",
+      phone: client.phone || "",
+      email: client.email || "",
+      legal_name: client.legal_name || "",
+      inn: client.inn || "",
+      notes: client.notes || "",
+    });
+    setShowClientForm(true);
   }
 
-  function openNew() {
-    setEditing(null);
-    setName("");
-    setLegalName("");
-    setInn("");
-    setContact("");
-    setPhone("");
-    setEmail("");
-    setNotes("");
-    setError("");
-    setFormOpen(true);
-  }
-
-  function openEdit(client) {
-    setEditing(client);
-    setName(client.name || "");
-    setLegalName(client.legal_name || "");
-    setInn(client.inn || "");
-    setContact(client.contact_name || "");
-    setPhone(client.phone || "");
-    setEmail(client.email || "");
-    setNotes(client.notes || "");
-    setError("");
-    setFormOpen(true);
-  }
-
-  function closeForm() {
-    setFormOpen(false);
-    setEditing(null);
-    setError("");
-  }
-
-  async function save(event) {
-    event.preventDefault();
-
-    if (!name.trim()) {
-      setError("Введите название клиента.");
+  async function saveClient() {
+    if (!clientForm.name.trim()) {
+      showNotice("Укажите название клиента");
       return;
     }
 
-    setSaving(true);
-    setError("");
+    let result;
 
-    const payload = {
-      name: name.trim(),
-      legal_name: legalName.trim() || null,
-      inn: inn.trim() || null,
-      contact_name: contact.trim() || null,
-      phone: phone.trim() || null,
-      email: email.trim() || null,
-      notes: notes.trim() || null,
-    };
-
-    const result = editing
-      ? await supabase
-          .from("clients")
-          .update(payload)
-          .eq("id", editing.id)
-      : await supabase.from("clients").insert(payload);
+    if (editingClient) {
+      result = await supabase
+        .from("clients")
+        .update(clientForm)
+        .eq("id", editingClient.id);
+    } else {
+      result = await supabase.from("clients").insert(clientForm);
+    }
 
     if (result.error) {
-      setError(result.error.message);
-      setSaving(false);
+      showNotice(result.error.message);
       return;
     }
 
-    await load();
-    setSaving(false);
-    closeForm();
+    setShowClientForm(false);
+    setSelectedClient(null);
+    await loadAll();
+    showNotice(editingClient ? "Клиент сохранён" : "Клиент добавлен");
   }
 
-  const filtered = clients.filter((client) => {
-    const text = [
-      client.name,
-      client.legal_name,
-      client.inn,
-      client.contact_name,
-      client.phone,
-      client.email,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return text.includes(search.toLowerCase());
-  });
-
-  if (formOpen) {
-    return (
-      <PageForm
-        title={editing ? "Карточка клиента" : "Новый клиент"}
-        subtitle={
-          editing
-            ? "Изменение данных клиента"
-            : "Добавление нового клиента"
-        }
-        onBack={closeForm}
-      >
-        <form onSubmit={save}>
-          <div style={styles.formGrid}>
-            <Field
-              label="Название *"
-              value={name}
-              onChange={setName}
-              placeholder="Название компании"
-            />
-
-            <Field
-              label="Юридическое название"
-              value={legalName}
-              onChange={setLegalName}
-              placeholder="Юридическое лицо"
-            />
-
-            <Field
-              label="ИНН"
-              value={inn}
-              onChange={setInn}
-              placeholder="ИНН"
-            />
-
-            <Field
-              label="Контактное лицо"
-              value={contact}
-              onChange={setContact}
-              placeholder="Имя и фамилия"
-            />
-
-            <Field
-              label="Телефон"
-              value={phone}
-              onChange={setPhone}
-              placeholder="+..."
-            />
-
-            <Field
-              label="Email"
-              value={email}
-              onChange={setEmail}
-              placeholder="email@example.com"
-            />
-          </div>
-
-          <Field
-            label="Заметка"
-            value={notes}
-            onChange={setNotes}
-            placeholder="Дополнительная информация"
-            textarea
-          />
-
-          {error && <div style={styles.error}>{error}</div>}
-
-          <div style={styles.formActions}>
-            <button
-              type="button"
-              style={styles.secondaryButton}
-              onClick={closeForm}
-            >
-              Отмена
-            </button>
-
-            <button
-              type="submit"
-              style={styles.primaryButtonSmall}
-              disabled={saving}
-            >
-              {saving ? "Сохранение..." : "Сохранить"}
-            </button>
-          </div>
-        </form>
-      </PageForm>
-    );
+  function openNewProduct() {
+    setEditingProduct(null);
+    setProductForm({
+      client_id: clients[0]?.id || "",
+      sku: "",
+      name: "",
+      size_type: "medium",
+      length_cm: "",
+      width_cm: "",
+      height_cm: "",
+      weight_kg: "",
+      notes: "",
+    });
+    setShowProductForm(true);
   }
 
-  return (
-    <div>
-      <PageHeader
-        title="Клиенты"
-        subtitle="Компании и контактные данные"
-        button="+ Добавить клиента"
-        onClick={openNew}
-      />
+  function openEditProduct(product) {
+    setEditingProduct(product);
+    setProductForm({
+      client_id: product.client_id || "",
+      sku: product.sku || "",
+      name: product.name || "",
+      size_type: product.size_type || "medium",
+      length_cm: product.length_cm || "",
+      width_cm: product.width_cm || "",
+      height_cm: product.height_cm || "",
+      weight_kg: product.weight_kg || "",
+      notes: product.notes || "",
+    });
+    setShowProductForm(true);
+  }
 
-      <div style={styles.toolbar}>
-        <input
-          style={styles.searchInput}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск клиента..."
-        />
-      </div>
+  async function saveProduct() {
+    if (!productForm.client_id || !productForm.sku || !productForm.name) {
+      showNotice("Заполните клиента, SKU и название");
+      return;
+    }
 
-      <div style={styles.panel}>
-        {loading ? (
-          <Loading />
-        ) : filtered.length === 0 ? (
-          <Empty
-            title="Клиенты не найдены"
-            text="Добавьте первого клиента или измените поиск."
-          />
-        ) : (
-          <div style={styles.list}>
-            {filtered.map((client) => (
-              <div key={client.id} style={styles.listRow}>
-                <div style={styles.clientIdentity}>
-                  <div style={styles.clientAvatar}>
-                    {(client.name || "?").slice(0, 1).toUpperCase()}
-                  </div>
+    const payload = {
+      ...productForm,
+      length_cm: productForm.length_cm
+        ? Number(productForm.length_cm)
+        : null,
+      width_cm: productForm.width_cm
+        ? Number(productForm.width_cm)
+        : null,
+      height_cm: productForm.height_cm
+        ? Number(productForm.height_cm)
+        : null,
+      weight_kg: productForm.weight_kg
+        ? Number(productForm.weight_kg)
+        : null,
+    };
 
-                  <div>
-                    <div style={styles.rowTitle}>{client.name}</div>
-                    <div style={styles.rowSubtitle}>
-                      {client.contact_name || "Контактное лицо не указано"}
-                    </div>
-                  </div>
-                </div>
+    let result;
 
-                <div style={styles.rowInfo}>
-                  <span>{client.phone || "—"}</span>
-                  <span>{client.email || "—"}</span>
-                </div>
-
-                <button
-                  style={styles.ghostButton}
-                  onClick={() => openEdit(client)}
-                >
-                  Открыть
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Products() {
-  const [products, setProducts] = useState([]);
-  const [clients, setClients] = useState([]);
-  const [search, setSearch] = useState("");
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const [clientId, setClientId] = useState("");
-  const [sku, setSku] = useState("");
-  const [name, setName] = useState("");
-  const [sizeType, setSizeType] = useState("");
-  const [length, setLength] = useState("");
-  const [width, setWidth] = useState("");
-  const [height, setHeight] = useState("");
-  const [weight, setWeight] = useState("");
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
-    setLoading(true);
-
-    const [productsResult, clientsResult] = await Promise.all([
-      supabase
+    if (editingProduct) {
+      result = await supabase
         .from("products")
-        .select("*, clients(name)")
-        .order("name"),
-      supabase.from("clients").select("id,name").eq("is_active", true).order("name"),
-    ]);
-
-    setProducts(productsResult.data || []);
-    setClients(clientsResult.data || []);
-    setLoading(false);
-  }
-
-  function reset() {
-    setEditing(null);
-    setClientId("");
-    setSku("");
-    setName("");
-    setSizeType("");
-    setLength("");
-    setWidth("");
-    setHeight("");
-    setWeight("");
-    setNotes("");
-    setError("");
-  }
-
-  function openNew() {
-    reset();
-    setFormOpen(true);
-  }
-
-  function openEdit(product) {
-    setEditing(product);
-    setClientId(product.client_id || "");
-    setSku(product.sku || "");
-    setName(product.name || "");
-    setSizeType(product.size_type || "");
-    setLength(product.length_cm ?? "");
-    setWidth(product.width_cm ?? "");
-    setHeight(product.height_cm ?? "");
-    setWeight(product.weight_kg ?? "");
-    setNotes(product.notes || "");
-    setError("");
-    setFormOpen(true);
-  }
-
-  async function save(event) {
-    event.preventDefault();
-
-    if (!clientId || !sku.trim() || !name.trim()) {
-      setError("Заполните клиента, SKU и название.");
-      return;
+        .update(payload)
+        .eq("id", editingProduct.id);
+    } else {
+      result = await supabase.from("products").insert(payload);
     }
-
-    setSaving(true);
-    setError("");
-
-    const payload = {
-      client_id: clientId,
-      sku: sku.trim(),
-      name: name.trim(),
-      size_type: sizeType || null,
-      length_cm: length === "" ? null : Number(length),
-      width_cm: width === "" ? null : Number(width),
-      height_cm: height === "" ? null : Number(height),
-      weight_kg: weight === "" ? null : Number(weight),
-      notes: notes.trim() || null,
-    };
-
-    const result = editing
-      ? await supabase.from("products").update(payload).eq("id", editing.id)
-      : await supabase.from("products").insert(payload);
 
     if (result.error) {
-      setError(
-        result.error.code === "23505"
-          ? "Такой SKU уже существует у этого клиента."
-          : result.error.message
-      );
-      setSaving(false);
+      showNotice(result.error.message);
       return;
     }
 
-    await load();
-    setSaving(false);
-    setFormOpen(false);
-    reset();
+    setShowProductForm(false);
+    await loadAll();
+    showNotice(editingProduct ? "Номенклатура сохранена" : "Номенклатура добавлена");
   }
 
-  const filtered = products.filter((p) => {
-    const text = `${p.sku} ${p.name} ${p.clients?.name || ""}`.toLowerCase();
-    return text.includes(search.toLowerCase());
-  });
+  async function saveTariff() {
+    if (!tariffForm.client_id || !tariffForm.price_rub) {
+      showNotice("Заполните клиента и стоимость");
+      return;
+    }
 
-  if (formOpen) {
-    return (
-      <PageForm
-        title={editing ? "Карточка SKU" : "Новая номенклатура"}
-        subtitle="Справочник товаров без учета складских остатков"
-        onBack={() => {
-          setFormOpen(false);
-          reset();
-        }}
-      >
-        <form onSubmit={save}>
-          <div style={styles.formGrid}>
-            <SelectField
-              label="Клиент *"
-              value={clientId}
-              onChange={setClientId}
-              options={clients.map((c) => ({
-                value: c.id,
-                label: c.name,
-              }))}
-            />
+    if (
+      tariffForm.tariff_type !== "storage" &&
+      !tariffForm.product_id &&
+      tariffForm.product_id !== ""
+    ) {
+      // client-level tariff is allowed
+    }
 
-            <Field
-              label="SKU *"
-              value={sku}
-              onChange={setSku}
-              placeholder="Артикул"
-            />
+    const payload = {
+      client_id: tariffForm.client_id,
+      product_id:
+        tariffForm.tariff_type === "storage"
+          ? null
+          : tariffForm.product_id || null,
+      tariff_type: tariffForm.tariff_type,
+      price_rub: Number(tariffForm.price_rub),
+      effective_from: tariffForm.effective_from,
+      notes: tariffForm.notes || null,
+    };
 
-            <Field
-              label="Название *"
-              value={name}
-              onChange={setName}
-              placeholder="Название товара"
-            />
+    const result = await supabase.from("tariffs").insert(payload);
 
-            <SelectField
-              label="Размерная категория"
-              value={sizeType}
-              onChange={setSizeType}
-              options={[
-                { value: "small", label: "Малый" },
-                { value: "medium", label: "Средний" },
-                { value: "large", label: "Большой" },
-              ]}
-            />
+    if (result.error) {
+      showNotice(result.error.message);
+      return;
+    }
 
-            <Field
-              label="Длина, см"
-              value={length}
-              onChange={setLength}
-              type="number"
-            />
+    setShowTariffForm(false);
+    await loadAll();
+    showNotice("Тариф добавлен");
+  }
 
-            <Field
-              label="Ширина, см"
-              value={width}
-              onChange={setWidth}
-              type="number"
-            />
+  async function addOperation() {
+    if (!operationForm.client_id) {
+      showNotice("Выберите клиента");
+      return;
+    }
 
-            <Field
-              label="Высота, см"
-              value={height}
-              onChange={setHeight}
-              type="number"
-            />
+    if (
+      operationForm.operation_type === "shipment" &&
+      Number(operationForm.quantity) <= 0
+    ) {
+      showNotice("Количество должно быть больше 0");
+      return;
+    }
 
-            <Field
-              label="Вес, кг"
-              value={weight}
-              onChange={setWeight}
-              type="number"
-            />
-          </div>
+    if (operationForm.operation_type === "shipment") {
+      const tariff = await getEffectiveShipmentTariff(
+        operationForm.client_id,
+        operationForm.product_id || null,
+        operationForm.tariff_type,
+        operationForm.shipment_date
+      );
 
-          <Field
-            label="Заметка"
-            value={notes}
-            onChange={setNotes}
-            textarea
-          />
+      if (tariff === null) {
+        showNotice("Не найден тариф для операции");
+        return;
+      }
 
-          {error && <div style={styles.error}>{error}</div>}
+      const payload = {
+        client_id: operationForm.client_id,
+        product_id: operationForm.product_id || null,
+        shipment_date: operationForm.shipment_date,
+        quantity: Number(operationForm.quantity),
+        tariff_type: operationForm.tariff_type,
+        unit_price_rub: Number(tariff),
+        total_rub: Number(tariff) * Number(operationForm.quantity),
+        status: "active",
+        note: operationForm.note || null,
+        created_by: session.user.id,
+      };
 
-          <div style={styles.formActions}>
-            <button
-              type="button"
-              style={styles.secondaryButton}
-              onClick={() => {
-                setFormOpen(false);
-                reset();
-              }}
-            >
-              Отмена
-            </button>
+      const result = await supabase.from("shipments").insert(payload);
 
-            <button
-              type="submit"
-              style={styles.primaryButtonSmall}
-              disabled={saving}
-            >
-              {saving ? "Сохранение..." : "Сохранить"}
-            </button>
-          </div>
-        </form>
-      </PageForm>
+      if (result.error) {
+        showNotice(result.error.message);
+        return;
+      }
+
+      setShowOperationForm(false);
+      await loadAll();
+      showNotice("Операция добавлена");
+      return;
+    }
+
+    showNotice(
+      "Для хранения используйте раздел операций хранения после добавления соответствующей записи."
     );
   }
 
-  return (
-    <div>
-      <PageHeader
-        title="Номенклатура"
-        subtitle="SKU клиентов для привязки операций"
-        button="+ Добавить SKU"
-        onClick={openNew}
-      />
-
-      <div style={styles.toolbar}>
-        <input
-          style={styles.searchInput}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск по SKU, товару или клиенту..."
-        />
-      </div>
-
-      <div style={styles.panel}>
-        {loading ? (
-          <Loading />
-        ) : filtered.length === 0 ? (
-          <Empty
-            title="Номенклатура пуста"
-            text="Добавьте SKU клиента."
-          />
-        ) : (
-          <div style={styles.list}>
-            {filtered.map((product) => (
-              <div key={product.id} style={styles.listRow}>
-                <div style={styles.clientIdentity}>
-                  <div style={styles.productIcon}>▦</div>
-                  <div>
-                    <div style={styles.rowTitle}>{product.name}</div>
-                    <div style={styles.rowSubtitle}>
-                      {product.sku} · {product.clients?.name || "—"}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={styles.rowInfo}>
-                  <span>
-                    {product.size_type
-                      ? tariffLabels[product.size_type]
-                      : "Категория не задана"}
-                  </span>
-                </div>
-
-                <button
-                  style={styles.ghostButton}
-                  onClick={() => openEdit(product)}
-                >
-                  Открыть
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Tariffs() {
-  const [tariffs, setTariffs] = useState([]);
-  const [systemTariffs, setSystemTariffs] = useState([]);
-  const [clients, setClients] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [formOpen, setFormOpen] = useState(false);
-
-  const [clientId, setClientId] = useState("");
-  const [productId, setProductId] = useState("");
-  const [type, setType] = useState("small");
-  const [price, setPrice] = useState("");
-  const [from, setFrom] = useState(today());
-  const [to, setTo] = useState("");
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
-    const [tariffResult, systemResult, clientResult, productResult] =
-      await Promise.all([
-        supabase
-          .from("tariffs")
-          .select("*, clients(name), products(name,sku)")
-          .order("effective_from", { ascending: false }),
-        supabase
-          .from("system_tariffs")
-          .select("*")
-          .order("tariff_type"),
-        supabase.from("clients").select("id,name").eq("is_active", true).order("name"),
-        supabase.from("products").select("id,name,sku,client_id").eq("is_active", true).order("name"),
-      ]);
-
-    setTariffs(tariffResult.data || []);
-    setSystemTariffs(systemResult.data || []);
-    setClients(clientResult.data || []);
-    setProducts(productResult.data || []);
-  }
-
-  async function save(event) {
-    event.preventDefault();
-
-    if (!clientId || !type || price === "" || !from) {
-      setError("Заполните обязательные поля.");
-      return;
-    }
-
-    if (type === "storage" && productId) {
-      setError("Для хранения товар указывать нельзя.");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-
-    const payload = {
-      client_id: clientId,
-      product_id: type === "storage" ? null : productId || null,
-      tariff_type: type,
-      price_rub: Number(price),
-      effective_from: from,
-      effective_to: to || null,
-      notes: notes.trim() || null,
-    };
-
-    const { error } = await supabase.from("tariffs").insert(payload);
+  async function getEffectiveShipmentTariff(
+    clientId,
+    productId,
+    tariffType,
+    operationDate
+  ) {
+    const { data, error } = await supabase.rpc(
+      "get_effective_shipment_tariff",
+      {
+        p_client_id: clientId,
+        p_product_id: productId || null,
+        p_tariff_type: tariffType,
+        p_date: operationDate,
+      }
+    );
 
     if (error) {
-      setError(
-        error.code === "23P01"
-          ? "Для этого тарифа уже существует пересекающийся период."
-          : error.message
-      );
-      setSaving(false);
+      console.error(error);
+      return null;
+    }
+
+    return data;
+  }
+
+  async function cancelShipment(id) {
+    const result = await supabase.rpc("cancel_shipment", {
+      p_shipment_id: id,
+    });
+
+    if (result.error) {
+      showNotice(result.error.message);
       return;
     }
 
-    await load();
-    setSaving(false);
-    setFormOpen(false);
-    reset();
+    await loadAll();
+    showNotice("Операция отменена");
   }
 
-  function reset() {
-    setClientId("");
-    setProductId("");
-    setType("small");
-    setPrice("");
-    setFrom(today());
-    setTo("");
-    setNotes("");
+  async function cancelStorage(id) {
+    const result = await supabase.rpc("cancel_storage", {
+      p_storage_id: id,
+    });
+
+    if (result.error) {
+      showNotice(result.error.message);
+      return;
+    }
+
+    await loadAll();
+    showNotice("Хранение отменено");
+  }
+
+  const filteredClients = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    if (!q) return clients;
+
+    return clients.filter((client) =>
+      [
+        client.name,
+        client.contact_name,
+        client.phone,
+        client.email,
+        client.inn,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [clients, search]);
+
+  const selectedClientProducts = useMemo(() => {
+    if (!tariffForm.client_id) return products;
+    return products.filter((p) => p.client_id === tariffForm.client_id);
+  }, [products, tariffForm.client_id]);
+
+  const operationProducts = useMemo(() => {
+    if (!operationForm.client_id) return products;
+    return products.filter((p) => p.client_id === operationForm.client_id);
+  }, [products, operationForm.client_id]);
+
+  const periodShipments = useMemo(() => {
+    return shipments.filter(
+      (item) =>
+        item.status === "active" &&
+        item.shipment_date >= periodFrom &&
+        item.shipment_date <= periodTo
+    );
+  }, [shipments, periodFrom, periodTo]);
+
+  const periodStorage = useMemo(() => {
+    return storageRecords.filter((item) => {
+      const active =
+        item.status !== "cancelled" &&
+        item.start_date <= periodTo &&
+        (!item.end_date || item.end_date >= periodFrom);
+
+      return active;
+    });
+  }, [storageRecords, periodFrom, periodTo]);
+
+  const payableTotal = useMemo(() => {
+    const shipmentsTotal = periodShipments.reduce(
+      (sum, item) => sum + Number(item.total_rub || 0),
+      0
+    );
+
+    const storageTotal = periodStorage.reduce(
+      (sum, item) => sum + Number(item.total_rub || 0),
+      0
+    );
+
+    return shipmentsTotal + storageTotal;
+  }, [periodShipments, periodStorage]);
+
+  const activeOperations = shipments.filter(
+    (item) => item.status === "active"
+  );
+
+  const dashboardTotal = activeOperations.reduce(
+    (sum, item) => sum + Number(item.total_rub || 0),
+    0
+  );
+
+  const dashboardQuantity = activeOperations.reduce(
+    (sum, item) => sum + Number(item.quantity || 0),
+    0
+  );
+
+  if (loadingAuth) {
+    return <LoadingScreen />;
+  }
+
+  if (!session) {
+    return <LoginScreen />;
+  }
+
+  return (
+    <div className="app-shell">
+      <Sidebar
+        page={page}
+        navigate={navigate}
+        logout={logout}
+      />
+
+      <div className="app-main">
+        <MobileTopBar
+          page={page}
+          onMenu={() => setMobileMore((v) => !v)}
+          mobileMore={mobileMore}
+          navigate={navigate}
+        />
+
+        {mobileMore && (
+          <MobileMoreMenu
+            navigate={navigate}
+            logout={logout}
+          />
+        )}
+
+        <main className="content">
+          {loadingData && (
+            <div className="loading-strip">Обновление данных…</div>
+          )}
+
+          {notice && <div className="notice">{notice}</div>}
+
+          {page === "home" && (
+            <HomePage
+              clients={clients}
+              dashboardTotal={dashboardTotal}
+              dashboardQuantity={dashboardQuantity}
+              activeOperations={activeOperations}
+              navigate={navigate}
+            />
+          )}
+
+          {page === "clients" && (
+            <ClientsPage
+              clients={filteredClients}
+              search={search}
+              setSearch={setSearch}
+              selectedClient={selectedClient}
+              setSelectedClient={setSelectedClient}
+              openNewClient={openNewClient}
+              openEditClient={openEditClient}
+              products={products}
+              shipments={shipments}
+              onNewProduct={openNewProduct}
+              onEditProduct={openEditProduct}
+            />
+          )}
+
+          {page === "products" && (
+            <ProductsPage
+              products={products}
+              clients={clients}
+              openNewProduct={openNewProduct}
+              openEditProduct={openEditProduct}
+            />
+          )}
+
+          {page === "tariffs" && (
+            <TariffsPage
+              tariffs={tariffs}
+              systemTariffs={systemTariffs}
+              clients={clients}
+              products={products}
+              showTariffForm={showTariffForm}
+              setShowTariffForm={setShowTariffForm}
+              tariffForm={tariffForm}
+              setTariffForm={setTariffForm}
+              selectedClientProducts={selectedClientProducts}
+              saveTariff={saveTariff}
+            />
+          )}
+
+          {page === "operations" && (
+            <OperationsPage
+              shipments={shipments}
+              storageRecords={storageRecords}
+              clients={clients}
+              openOperation={() => {
+                setOperationForm({
+                  client_id: clients[0]?.id || "",
+                  product_id: "",
+                  shipment_date: today(),
+                  quantity: 1,
+                  tariff_type: "small",
+                  note: "",
+                  operation_type: "shipment",
+                });
+                setShowOperationForm(true);
+              }}
+              cancelShipment={cancelShipment}
+              cancelStorage={cancelStorage}
+            />
+          )}
+
+          {page === "payable" && (
+            <PayablePage
+              periodFrom={periodFrom}
+              setPeriodFrom={setPeriodFrom}
+              periodTo={periodTo}
+              setPeriodTo={setPeriodTo}
+              periodShipments={periodShipments}
+              periodStorage={periodStorage}
+              payableTotal={payableTotal}
+              clients={clients}
+            />
+          )}
+
+          {page === "history" && (
+            <HistoryPage
+              shipments={shipments}
+              storageRecords={storageRecords}
+              auditLog={auditLog}
+            />
+          )}
+        </main>
+
+        <MobileBottomNav
+          page={page}
+          navigate={navigate}
+          onMore={() => setMobileMore((v) => !v)}
+          moreOpen={mobileMore}
+        />
+      </div>
+
+      {showClientForm && (
+        <Modal
+          title={editingClient ? "Редактирование клиента" : "Новый клиент"}
+          onClose={() => setShowClientForm(false)}
+        >
+          <FormField
+            label="Название клиента *"
+            value={clientForm.name}
+            onChange={(v) =>
+              setClientForm({ ...clientForm, name: v })
+            }
+          />
+
+          <FormField
+            label="Контактное лицо"
+            value={clientForm.contact_name}
+            onChange={(v) =>
+              setClientForm({ ...clientForm, contact_name: v })
+            }
+          />
+
+          <div className="form-grid">
+            <FormField
+              label="Телефон"
+              value={clientForm.phone}
+              onChange={(v) =>
+                setClientForm({ ...clientForm, phone: v })
+              }
+            />
+
+            <FormField
+              label="Email"
+              value={clientForm.email}
+              onChange={(v) =>
+                setClientForm({ ...clientForm, email: v })
+              }
+            />
+          </div>
+
+          <div className="form-grid">
+            <FormField
+              label="Юридическое название"
+              value={clientForm.legal_name}
+              onChange={(v) =>
+                setClientForm({ ...clientForm, legal_name: v })
+              }
+            />
+
+            <FormField
+              label="ИНН"
+              value={clientForm.inn}
+              onChange={(v) =>
+                setClientForm({ ...clientForm, inn: v })
+              }
+            />
+          </div>
+
+          <FormField
+            label="Заметки"
+            value={clientForm.notes}
+            onChange={(v) =>
+              setClientForm({ ...clientForm, notes: v })
+            }
+            textarea
+          />
+
+          <ModalActions
+            onCancel={() => setShowClientForm(false)}
+            onSave={saveClient}
+          />
+        </Modal>
+      )}
+
+      {showProductForm && (
+        <Modal
+          title={
+            editingProduct
+              ? "Редактирование номенклатуры"
+              : "Новая номенклатура"
+          }
+          onClose={() => setShowProductForm(false)}
+        >
+          <SelectField
+            label="Клиент *"
+            value={productForm.client_id}
+            onChange={(v) =>
+              setProductForm({ ...productForm, client_id: v })
+            }
+            options={clients.map((c) => ({
+              value: c.id,
+              label: c.name,
+            }))}
+          />
+
+          <div className="form-grid">
+            <FormField
+              label="SKU *"
+              value={productForm.sku}
+              onChange={(v) =>
+                setProductForm({ ...productForm, sku: v })
+              }
+            />
+
+            <FormField
+              label="Название *"
+              value={productForm.name}
+              onChange={(v) =>
+                setProductForm({ ...productForm, name: v })
+              }
+            />
+          </div>
+
+          <SelectField
+            label="Категория размера"
+            value={productForm.size_type}
+            onChange={(v) =>
+              setProductForm({ ...productForm, size_type: v })
+            }
+            options={[
+              { value: "small", label: "Малый" },
+              { value: "medium", label: "Средний" },
+              { value: "large", label: "Большой" },
+            ]}
+          />
+
+          <div className="form-grid-4">
+            <FormField
+              label="Длина, см"
+              value={productForm.length_cm}
+              onChange={(v) =>
+                setProductForm({ ...productForm, length_cm: v })
+              }
+              type="number"
+            />
+
+            <FormField
+              label="Ширина, см"
+              value={productForm.width_cm}
+              onChange={(v) =>
+                setProductForm({ ...productForm, width_cm: v })
+              }
+              type="number"
+            />
+
+            <FormField
+              label="Высота, см"
+              value={productForm.height_cm}
+              onChange={(v) =>
+                setProductForm({ ...productForm, height_cm: v })
+              }
+              type="number"
+            />
+
+            <FormField
+              label="Вес, кг"
+              value={productForm.weight_kg}
+              onChange={(v) =>
+                setProductForm({ ...productForm, weight_kg: v })
+              }
+              type="number"
+            />
+          </div>
+
+          <FormField
+            label="Заметки"
+            value={productForm.notes}
+            onChange={(v) =>
+              setProductForm({ ...productForm, notes: v })
+            }
+            textarea
+          />
+
+          <ModalActions
+            onCancel={() => setShowProductForm(false)}
+            onSave={saveProduct}
+          />
+        </Modal>
+      )}
+
+      {showOperationForm && (
+        <Modal
+          title="Новая операция"
+          onClose={() => setShowOperationForm(false)}
+        >
+          <SelectField
+            label="Тип операции"
+            value={operationForm.operation_type}
+            onChange={(v) =>
+              setOperationForm({
+                ...operationForm,
+                operation_type: v,
+              })
+            }
+            options={[
+              { value: "shipment", label: "Услуга / операция" },
+            ]}
+          />
+
+          <SelectField
+            label="Клиент *"
+            value={operationForm.client_id}
+            onChange={(v) =>
+              setOperationForm({
+                ...operationForm,
+                client_id: v,
+                product_id: "",
+              })
+            }
+            options={clients.map((c) => ({
+              value: c.id,
+              label: c.name,
+            }))}
+          />
+
+          <SelectField
+            label="Номенклатура"
+            value={operationForm.product_id}
+            onChange={(v) =>
+              setOperationForm({
+                ...operationForm,
+                product_id: v,
+              })
+            }
+            options={[
+              { value: "", label: "Без номенклатуры" },
+              ...operationProducts.map((p) => ({
+                value: p.id,
+                label: `${p.sku} — ${p.name}`,
+              })),
+            ]}
+          />
+
+          <div className="form-grid">
+            <FormField
+              label="Дата"
+              type="date"
+              value={operationForm.shipment_date}
+              onChange={(v) =>
+                setOperationForm({
+                  ...operationForm,
+                  shipment_date: v,
+                })
+              }
+            />
+
+            <FormField
+              label="Количество"
+              type="number"
+              value={operationForm.quantity}
+              onChange={(v) =>
+                setOperationForm({
+                  ...operationForm,
+                  quantity: v,
+                })
+              }
+            />
+          </div>
+
+          <SelectField
+            label="Тариф"
+            value={operationForm.tariff_type}
+            onChange={(v) =>
+              setOperationForm({
+                ...operationForm,
+                tariff_type: v,
+              })
+            }
+            options={[
+              { value: "small", label: "Малый" },
+              { value: "medium", label: "Средний" },
+              { value: "large", label: "Большой" },
+            ]}
+          />
+
+          <FormField
+            label="Комментарий"
+            value={operationForm.note}
+            onChange={(v) =>
+              setOperationForm({
+                ...operationForm,
+                note: v,
+              })
+            }
+            textarea
+          />
+
+          <ModalActions
+            onCancel={() => setShowOperationForm(false)}
+            onSave={addOperation}
+            saveText="Добавить операцию"
+          />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function LoginScreen() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function login(e) {
+    e.preventDefault();
     setError("");
+    setLoading(true);
+
+    const { error: loginError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+    if (loginError) setError(loginError.message);
+
+    setLoading(false);
   }
 
-  function clientProducts() {
-    return products.filter((p) => p.client_id === clientId);
+  return (
+    <div className="login-page">
+      <div className="login-card">
+        <div className="brand-mark">S</div>
+
+        <div className="login-brand">SORTEX</div>
+        <div className="login-subtitle">WMS · OPERATIONS</div>
+
+        <h1>Вход в систему</h1>
+
+        <form onSubmit={login}>
+          <FormField
+            label="Email"
+            value={email}
+            onChange={setEmail}
+            type="email"
+          />
+
+          <FormField
+            label="Пароль"
+            value={password}
+            onChange={setPassword}
+            type="password"
+          />
+
+          {error && <div className="error-box">{error}</div>}
+
+          <button
+            className="primary-button login-button"
+            disabled={loading}
+          >
+            {loading ? "Вход…" : "Войти"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function LoadingScreen() {
+  return (
+    <div className="loading-screen">
+      <div className="loading-logo">SORTEX</div>
+      <div className="loading-text">Загрузка системы…</div>
+    </div>
+  );
+}
+
+function Sidebar({ page, navigate, logout }) {
+  const items = [
+    ["home", "⌂", "Главная"],
+    ["clients", "◉", "Клиенты"],
+    ["products", "□", "Номенклатура"],
+    ["tariffs", "◇", "Тарифы"],
+    ["operations", "↗", "Операции"],
+    ["payable", "₽", "К оплате"],
+    ["history", "◷", "История"],
+  ];
+
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-brand">
+        <div className="sidebar-logo">S</div>
+        <div>
+          <div className="sidebar-title">SORTEX</div>
+          <div className="sidebar-caption">WMS · OPERATIONS</div>
+        </div>
+      </div>
+
+      <nav className="sidebar-nav">
+        {items.map(([key, icon, label]) => (
+          <button
+            key={key}
+            className={`nav-item ${page === key ? "active" : ""}`}
+            onClick={() => navigate(key)}
+          >
+            <span className="nav-icon">{icon}</span>
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="sidebar-footer">
+        <div className="sidebar-status">
+          <span className="status-dot" />
+          Система подключена
+        </div>
+
+        <button className="logout-button" onClick={logout}>
+          Выйти
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function MobileTopBar({
+  page,
+  onMenu,
+  mobileMore,
+  navigate,
+}) {
+  const labels = {
+    home: "Главная",
+    clients: "Клиенты",
+    products: "Номенклатура",
+    tariffs: "Тарифы",
+    operations: "Операции",
+    payable: "К оплате",
+    history: "История",
+  };
+
+  return (
+    <header className="mobile-topbar">
+      <div className="mobile-brand" onClick={() => navigate("home")}>
+        <div className="mobile-logo">S</div>
+        <div>
+          <div className="mobile-brand-name">SORTEX</div>
+          <div className="mobile-page-name">{labels[page]}</div>
+        </div>
+      </div>
+
+      <button
+        className={`mobile-menu-button ${
+          mobileMore ? "selected" : ""
+        }`}
+        onClick={onMenu}
+      >
+        ☰
+      </button>
+    </header>
+  );
+}
+
+function MobileMoreMenu({ navigate, logout }) {
+  return (
+    <div className="mobile-more-menu">
+      <button onClick={() => navigate("products")}>
+        □ Номенклатура
+      </button>
+
+      <button onClick={() => navigate("tariffs")}>
+        ◇ Тарифы
+      </button>
+
+      <button onClick={() => navigate("history")}>
+        ◷ История
+      </button>
+
+      <button className="mobile-logout" onClick={logout}>
+        Выйти
+      </button>
+    </div>
+  );
+}
+
+function MobileBottomNav({
+  page,
+  navigate,
+  onMore,
+  moreOpen,
+}) {
+  const items = [
+    ["home", "⌂", "Главная"],
+    ["clients", "◉", "Клиенты"],
+    ["operations", "↗", "Операции"],
+    ["payable", "₽", "К оплате"],
+  ];
+
+  return (
+    <nav className="mobile-bottom-nav">
+      {items.map(([key, icon, label]) => (
+        <button
+          key={key}
+          className={page === key ? "active" : ""}
+          onClick={() => navigate(key)}
+        >
+          <span>{icon}</span>
+          <small>{label}</small>
+        </button>
+      ))}
+
+      <button
+        className={
+          moreOpen ||
+          ["products", "tariffs", "history"].includes(page)
+            ? "active"
+            : ""
+        }
+        onClick={onMore}
+      >
+        <span>•••</span>
+        <small>Ещё</small>
+      </button>
+    </nav>
+  );
+}
+
+function HomePage({
+  clients,
+  dashboardTotal,
+  dashboardQuantity,
+  activeOperations,
+  navigate,
+}) {
+  const recent = activeOperations.slice(0, 5);
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="SORTEX WMS"
+        title="Главная"
+        description="Контроль клиентских операций и начислений"
+      />
+
+      <div className="stats-grid">
+        <StatCard
+          label="Клиенты"
+          value={clients.length}
+          caption="активные карточки"
+        />
+
+        <StatCard
+          label="Операции"
+          value={dashboardQuantity}
+          caption="единиц за всё время"
+        />
+
+        <StatCard
+          label="Начислено"
+          value={money(dashboardTotal)}
+          caption="активные операции"
+          money
+        />
+      </div>
+
+      <section className="section-block">
+        <div className="section-heading">
+          <div>
+            <div className="section-eyebrow">БЫСТРЫЙ ДОСТУП</div>
+            <h2>Рабочие разделы</h2>
+          </div>
+        </div>
+
+        <div className="quick-grid">
+          <QuickCard
+            title="Клиенты"
+            text="Карточки клиентов и контакты"
+            onClick={() => navigate("clients")}
+          />
+
+          <QuickCard
+            title="Операции"
+            text="Добавление и контроль начислений"
+            onClick={() => navigate("operations")}
+          />
+
+          <QuickCard
+            title="К оплате"
+            text="Сумма начислений за период"
+            onClick={() => navigate("payable")}
+          />
+
+          <QuickCard
+            title="Тарифы"
+            text="Правила расчёта стоимости"
+            onClick={() => navigate("tariffs")}
+          />
+        </div>
+      </section>
+
+      <section className="section-block">
+        <div className="section-heading">
+          <div>
+            <div className="section-eyebrow">ПОСЛЕДНИЕ</div>
+            <h2>Последние операции</h2>
+          </div>
+
+          <button
+            className="secondary-button"
+            onClick={() => navigate("operations")}
+          >
+            Все операции
+          </button>
+        </div>
+
+        {recent.length === 0 ? (
+          <EmptyState text="Операций пока нет" />
+        ) : (
+          <div className="data-list">
+            {recent.map((item) => (
+              <OperationCard key={item.id} item={item} />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function ClientsPage({
+  clients,
+  search,
+  setSearch,
+  selectedClient,
+  setSelectedClient,
+  openNewClient,
+  openEditClient,
+  products,
+  shipments,
+  onNewProduct,
+  onEditProduct,
+}) {
+  if (selectedClient) {
+    const clientProducts = products.filter(
+      (p) => p.client_id === selectedClient.id
+    );
+
+    const clientOperations = shipments.filter(
+      (s) => s.client_id === selectedClient.id
+    );
+
+    const clientTotal = clientOperations
+      .filter((s) => s.status === "active")
+      .reduce((sum, s) => sum + Number(s.total_rub || 0), 0);
+
+    return (
+      <div>
+        <button
+          className="back-button"
+          onClick={() => setSelectedClient(null)}
+        >
+          ← Все клиенты
+        </button>
+
+        <PageHeader
+          eyebrow="КЛИЕНТ"
+          title={selectedClient.name}
+          description={
+            selectedClient.contact_name ||
+            selectedClient.phone ||
+            "Карточка клиента"
+          }
+          action={
+            <button
+              className="primary-button"
+              onClick={() => openEditClient(selectedClient)}
+            >
+              Редактировать
+            </button>
+          }
+        />
+
+        <div className="client-summary-grid">
+          <InfoCard
+            label="Контакт"
+            value={selectedClient.contact_name || "—"}
+          />
+          <InfoCard
+            label="Телефон"
+            value={selectedClient.phone || "—"}
+          />
+          <InfoCard
+            label="Email"
+            value={selectedClient.email || "—"}
+          />
+          <InfoCard
+            label="Активные начисления"
+            value={money(clientTotal)}
+          />
+        </div>
+
+        <section className="section-block">
+          <div className="section-heading">
+            <div>
+              <div className="section-eyebrow">НОМЕНКЛАТУРА</div>
+              <h2>Товары клиента</h2>
+            </div>
+
+            <button
+              className="secondary-button"
+              onClick={onNewProduct}
+            >
+              + Добавить
+            </button>
+          </div>
+
+          {clientProducts.length === 0 ? (
+            <EmptyState text="Номенклатура пока не добавлена" />
+          ) : (
+            <div className="data-list">
+              {clientProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onEdit={() => onEditProduct(product)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    );
   }
 
   return (
     <div>
       <PageHeader
-        title="Тарифы"
-        subtitle="Индивидуальные тарифы клиентов и системные значения"
-        button="+ Новый тариф"
-        onClick={() => {
-          reset();
-          setFormOpen(true);
-        }}
+        eyebrow="СПРАВОЧНИК"
+        title="Клиенты"
+        description="Клиентские карточки и контактные данные"
+        action={
+          <button className="primary-button" onClick={openNewClient}>
+            + Новый клиент
+          </button>
+        }
       />
 
-      {formOpen && (
-        <div style={styles.modalOverlay}>
-          <div style={styles.modal}>
-            <div style={styles.modalHeader}>
-              <div>
-                <h2 style={styles.modalTitle}>Новый тариф</h2>
-                <p style={styles.sectionSubtitle}>
-                  Тариф будет применяться начиная с указанной даты.
-                </p>
-              </div>
+      <div className="search-row">
+        <input
+          className="search-input"
+          placeholder="Поиск клиента…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
 
-              <button
-                style={styles.closeButton}
-                onClick={() => setFormOpen(false)}
-              >
-                ×
-              </button>
-            </div>
-
-            <form onSubmit={save}>
-              <SelectField
-                label="Клиент *"
-                value={clientId}
-                onChange={(value) => {
-                  setClientId(value);
-                  setProductId("");
-                }}
-                options={clients.map((c) => ({
-                  value: c.id,
-                  label: c.name,
-                }))}
-              />
-
-              <SelectField
-                label="Тип тарифа *"
-                value={type}
-                onChange={setType}
-                options={[
-                  { value: "small", label: "Малый" },
-                  { value: "medium", label: "Средний" },
-                  { value: "large", label: "Большой" },
-                  { value: "storage", label: "Хранение" },
-                ]}
-              />
-
-              {type !== "storage" && (
-                <SelectField
-                  label="Товар — необязательно"
-                  value={productId}
-                  onChange={setProductId}
-                  options={[
-                    { value: "", label: "Тариф всего клиента" },
-                    ...clientProducts().map((p) => ({
-                      value: p.id,
-                      label: `${p.sku} · ${p.name}`,
-                    })),
-                  ]}
-                />
-              )}
-
-              <Field
-                label="Цена, ₽ *"
-                value={price}
-                onChange={setPrice}
-                type="number"
-                placeholder="0.00"
-              />
-
-              <div style={styles.formGrid}>
-                <Field
-                  label="Действует с *"
-                  value={from}
-                  onChange={setFrom}
-                  type="date"
-                />
-
-                <Field
-                  label="Действует до"
-                  value={to}
-                  onChange={setTo}
-                  type="date"
-                />
-              </div>
-
-              <Field
-                label="Заметка"
-                value={notes}
-                onChange={setNotes}
-                textarea
-              />
-
-              {error && <div style={styles.error}>{error}</div>}
-
-              <div style={styles.formActions}>
-                <button
-                  type="button"
-                  style={styles.secondaryButton}
-                  onClick={() => setFormOpen(false)}
-                >
-                  Отмена
-                </button>
-
-                <button
-                  type="submit"
-                  style={styles.primaryButtonSmall}
-                  disabled={saving}
-                >
-                  {saving ? "Сохранение..." : "Создать тариф"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <div style={styles.tariffGrid}>
-        <div style={styles.panel}>
-          <div style={styles.panelHeader}>
-            <div>
-              <h3 style={styles.panelTitle}>Системные тарифы</h3>
-              <p style={styles.sectionSubtitle}>
-                Используются, если у клиента нет индивидуального тарифа.
-              </p>
-            </div>
-          </div>
-
-          <div style={styles.systemTariffGrid}>
-            {systemTariffs.map((tariff) => (
-              <div key={tariff.id} style={styles.systemTariff}>
-                <div style={styles.systemTariffName}>
-                  {tariffLabels[tariff.tariff_type]}
-                </div>
-                <div style={styles.systemTariffPrice}>
-                  {money(tariff.price_rub)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={styles.panel}>
-          <div style={styles.panelHeader}>
-            <div>
-              <h3 style={styles.panelTitle}>Правило применения</h3>
-              <p style={styles.sectionSubtitle}>
-                Тариф товара имеет приоритет над тарифом клиента.
-              </p>
-            </div>
-          </div>
-
-          <div style={styles.ruleBox}>
-            <div>01</div>
-            <span>Тариф конкретного SKU</span>
-          </div>
-
-          <div style={styles.ruleBox}>
-            <div>02</div>
-            <span>Тариф клиента</span>
-          </div>
-
-          <div style={styles.ruleBox}>
-            <div>03</div>
-            <span>Системный тариф</span>
-          </div>
+        <div className="search-count">
+          Найдено: <strong>{clients.length}</strong>
         </div>
       </div>
 
-      <div style={styles.panel}>
-        <div style={styles.panelHeader}>
+      {clients.length === 0 ? (
+        <EmptyState text="Клиенты не найдены" />
+      ) : (
+        <div className="data-list">
+          {clients.map((client) => (
+            <ClientCard
+              key={client.id}
+              client={client}
+              onOpen={() => setSelectedClient(client)}
+              onEdit={() => openEditClient(client)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProductsPage({
+  products,
+  clients,
+  openNewProduct,
+  openEditProduct,
+}) {
+  return (
+    <div>
+      <PageHeader
+        eyebrow="СПРАВОЧНИК"
+        title="Номенклатура"
+        description="SKU и параметры клиентских товаров"
+        action={
+          <button className="primary-button" onClick={openNewProduct}>
+            + Добавить
+          </button>
+        }
+      />
+
+      {products.length === 0 ? (
+        <EmptyState text="Номенклатура пока не добавлена" />
+      ) : (
+        <div className="data-list">
+          {products.map((product) => {
+            const client = clients.find(
+              (c) => c.id === product.client_id
+            );
+
+            return (
+              <ProductCard
+                key={product.id}
+                product={product}
+                clientName={client?.name}
+                onEdit={() => openEditProduct(product)}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TariffsPage({
+  tariffs,
+  systemTariffs,
+  clients,
+  products,
+  showTariffForm,
+  setShowTariffForm,
+  tariffForm,
+  setTariffForm,
+  selectedClientProducts,
+  saveTariff,
+}) {
+  return (
+    <div>
+      <PageHeader
+        eyebrow="НАСТРОЙКИ"
+        title="Тарифы"
+        description="Стоимость операций по клиентам и системе"
+        action={
+          <button
+            className="primary-button"
+            onClick={() => setShowTariffForm(true)}
+          >
+            + Новый тариф
+          </button>
+        }
+      />
+
+      <section className="section-block">
+        <div className="section-heading">
           <div>
-            <h3 style={styles.panelTitle}>Тарифы клиентов</h3>
-            <p style={styles.sectionSubtitle}>
-              История тарифов сохраняется.
-            </p>
+            <div className="section-eyebrow">СИСТЕМНЫЕ</div>
+            <h2>Базовые тарифы</h2>
+          </div>
+        </div>
+
+        <div className="system-tariff-grid">
+          {systemTariffs.map((item) => (
+            <div className="system-tariff-card" key={item.id}>
+              <span>{tariffLabels[item.tariff_type]}</span>
+              <strong>{money(item.price_rub)}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="section-block">
+        <div className="section-heading">
+          <div>
+            <div className="section-eyebrow">ИНДИВИДУАЛЬНЫЕ</div>
+            <h2>Тарифы клиентов</h2>
           </div>
         </div>
 
         {tariffs.length === 0 ? (
-          <Empty title="Тарифов пока нет" text="Создайте первый тариф." />
+          <EmptyState text="Индивидуальных тарифов пока нет" />
         ) : (
-          <div style={styles.list}>
+          <div className="data-list">
             {tariffs.map((tariff) => (
-              <div key={tariff.id} style={styles.listRow}>
-                <div>
-                  <div style={styles.rowTitle}>
-                    {tariff.clients?.name || "—"}
-                  </div>
-                  <div style={styles.rowSubtitle}>
-                    {tariff.products
-                      ? `${tariff.products.sku} · ${tariff.products.name}`
-                      : "Весь клиент"}
-                  </div>
-                </div>
-
-                <div style={styles.tariffTypeBadge}>
-                  {tariffLabels[tariff.tariff_type]}
-                </div>
-
-                <div style={styles.tariffPrice}>
-                  {money(tariff.price_rub)}
-                </div>
-
-                <div style={styles.rowDate}>
-                  {formatDate(tariff.effective_from)}
-                  {tariff.effective_to
-                    ? ` — ${formatDate(tariff.effective_to)}`
-                    : " — далее"}
-                </div>
-              </div>
+              <TariffCard key={tariff.id} tariff={tariff} />
             ))}
           </div>
         )}
-      </div>
-    </div>
-  );
-}
+      </section>
 
-function Operations() {
-  const [clients, setClients] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [operations, setOperations] = useState([]);
-  const [storage, setStorage] = useState([]);
-  const [mode, setMode] = useState("operation");
-
-  const [clientId, setClientId] = useState("");
-  const [productId, setProductId] = useState("");
-  const [date, setDate] = useState(today());
-  const [type, setType] = useState("small");
-  const [quantity, setQuantity] = useState(1);
-  const [note, setNote] = useState("");
-
-  const [volume, setVolume] = useState("");
-  const [startDate, setStartDate] = useState(today());
-  const [endDate, setEndDate] = useState(today());
-
-  const [price, setPrice] = useState(null);
-  const [storagePrice, setStoragePrice] = useState(null);
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  useEffect(() => {
-    if (mode === "operation" && clientId && productId && date) {
-      loadPrice();
-    }
-  }, [clientId, productId, type, date, mode]);
-
-  useEffect(() => {
-    if (mode === "storage" && clientId && startDate) {
-      loadStoragePrice();
-    }
-  }, [clientId, startDate, mode]);
-
-  async function load() {
-    setLoading(true);
-
-    const [clientsResult, productsResult, operationsResult, storageResult] =
-      await Promise.all([
-        supabase
-          .from("clients")
-          .select("id,name")
-          .eq("is_active", true)
-          .order("name"),
-        supabase
-          .from("products")
-          .select("id,name,sku,client_id,size_type")
-          .eq("is_active", true)
-          .order("name"),
-        supabase
-          .from("shipments")
-          .select("*, clients(name), products(name,sku)")
-          .order("shipment_date", { ascending: false })
-          .limit(10),
-        supabase
-          .from("storage_records")
-          .select("*, clients(name)")
-          .order("start_date", { ascending: false })
-          .limit(10),
-      ]);
-
-    setClients(clientsResult.data || []);
-    setProducts(productsResult.data || []);
-    setOperations(operationsResult.data || []);
-    setStorage(storageResult.data || []);
-    setLoading(false);
-  }
-
-  async function loadPrice() {
-    const { data } = await supabase.rpc("get_effective_shipment_tariff", {
-      p_client_id: clientId,
-      p_product_id: productId,
-      p_tariff_type: type,
-      p_date: date,
-    });
-
-    setPrice(data);
-  }
-
-  async function loadStoragePrice() {
-    const { data } = await supabase.rpc("get_effective_storage_tariff", {
-      p_client_id: clientId,
-      p_date: startDate,
-    });
-
-    setStoragePrice(data);
-  }
-
-  const clientProducts = products.filter(
-    (product) => product.client_id === clientId
-  );
-
-  const operationTotal =
-    Number(quantity || 0) * Number(price || 0);
-
-  const storageDays =
-    startDate && endDate
-      ? Math.max(
-          0,
-          Math.floor(
-            (new Date(`${endDate}T00:00:00`) -
-              new Date(`${startDate}T00:00:00`)) /
-              86400000
-          ) + 1
-        )
-      : 0;
-
-  const storageTotal =
-    Number(volume || 0) *
-    storageDays *
-    Number(storagePrice || 0);
-
-  async function saveOperation(event) {
-    event.preventDefault();
-
-    if (!clientId || !productId || !date || !quantity || !price) {
-      setError("Заполните клиента, SKU, дату и количество.");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-    setSuccess("");
-
-    const { error } = await supabase.from("shipments").insert({
-      client_id: clientId,
-      product_id: productId,
-      shipment_date: date,
-      quantity: Number(quantity),
-      tariff_type: type,
-      unit_price_rub: Number(price),
-      total_rub: Number(operationTotal.toFixed(2)),
-      note: note.trim() || null,
-      created_by: (await supabase.auth.getUser()).data.user?.id || null,
-    });
-
-    if (error) {
-      setError(error.message);
-      setSaving(false);
-      return;
-    }
-
-    setSuccess("Операция успешно добавлена.");
-    setQuantity(1);
-    setNote("");
-    await load();
-    setSaving(false);
-  }
-
-  async function saveStorage(event) {
-    event.preventDefault();
-
-    if (
-      !clientId ||
-      !volume ||
-      !startDate ||
-      !endDate ||
-      !storagePrice ||
-      storageDays <= 0
-    ) {
-      setError("Заполните клиента, объем и период хранения.");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-    setSuccess("");
-
-    const { error } = await supabase.from("storage_records").insert({
-      client_id: clientId,
-      volume_m3: Number(volume),
-      start_date: startDate,
-      end_date: endDate,
-      tariff_type: "storage",
-      price_per_m3_day_rub: Number(storagePrice),
-      total_rub: Number(storageTotal.toFixed(2)),
-      status: "planned",
-      note: note.trim() || null,
-      created_by: (await supabase.auth.getUser()).data.user?.id || null,
-    });
-
-    if (error) {
-      setError(error.message);
-      setSaving(false);
-      return;
-    }
-
-    setSuccess("Хранение успешно добавлено.");
-    setVolume("");
-    setNote("");
-    await load();
-    setSaving(false);
-  }
-
-  return (
-    <div>
-      <PageHeader
-        title="Операции"
-        subtitle="Фиксация выполненных услуг и хранения"
-      />
-
-      <div style={styles.operationSwitch}>
-        <button
-          style={{
-            ...styles.switchButton,
-            ...(mode === "operation" ? styles.switchActive : {}),
-          }}
-          onClick={() => {
-            setMode("operation");
-            setError("");
-            setSuccess("");
-          }}
+      {showTariffForm && (
+        <Modal
+          title="Новый тариф"
+          onClose={() => setShowTariffForm(false)}
         >
-          Услуга
-        </button>
-
-        <button
-          style={{
-            ...styles.switchButton,
-            ...(mode === "storage" ? styles.switchActive : {}),
-          }}
-          onClick={() => {
-            setMode("storage");
-            setError("");
-            setSuccess("");
-          }}
-        >
-          Хранение
-        </button>
-      </div>
-
-      <div style={styles.operationLayout}>
-        <div style={styles.panel}>
-          <div style={styles.panelHeader}>
-            <div>
-              <h3 style={styles.panelTitle}>
-                {mode === "operation"
-                  ? "Новая операция"
-                  : "Новое хранение"}
-              </h3>
-              <p style={styles.sectionSubtitle}>
-                Тариф фиксируется непосредственно в операции.
-              </p>
-            </div>
-          </div>
-
-          {mode === "operation" ? (
-            <form onSubmit={saveOperation}>
-              <SelectField
-                label="Клиент *"
-                value={clientId}
-                onChange={(value) => {
-                  setClientId(value);
-                  setProductId("");
-                  setPrice(null);
-                }}
-                options={clients.map((c) => ({
-                  value: c.id,
-                  label: c.name,
-                }))}
-              />
-
-              <SelectField
-                label="SKU *"
-                value={productId}
-                onChange={setProductId}
-                options={clientProducts.map((p) => ({
-                  value: p.id,
-                  label: `${p.sku} · ${p.name}`,
-                }))}
-              />
-
-              <div style={styles.formGrid}>
-                <Field
-                  label="Дата *"
-                  value={date}
-                  onChange={setDate}
-                  type="date"
-                />
-
-                <SelectField
-                  label="Размер *"
-                  value={type}
-                  onChange={setType}
-                  options={[
-                    { value: "small", label: "Малый" },
-                    { value: "medium", label: "Средний" },
-                    { value: "large", label: "Большой" },
-                  ]}
-                />
-
-                <Field
-                  label="Количество *"
-                  value={quantity}
-                  onChange={setQuantity}
-                  type="number"
-                  min="1"
-                />
-              </div>
-
-              <div style={styles.pricePreview}>
-                <div>
-                  <span style={styles.priceLabel}>Тариф</span>
-                  <strong>
-                    {price !== null ? money(price) : "—"}
-                  </strong>
-                </div>
-
-                <div>
-                  <span style={styles.priceLabel}>Итого</span>
-                  <strong style={styles.totalPrice}>
-                    {money(operationTotal)}
-                  </strong>
-                </div>
-              </div>
-
-              <Field
-                label="Комментарий"
-                value={note}
-                onChange={setNote}
-                textarea
-                placeholder="Комментарий к операции"
-              />
-
-              {error && <div style={styles.error}>{error}</div>}
-              {success && <div style={styles.success}>{success}</div>}
-
-              <button
-                type="submit"
-                style={styles.primaryButton}
-                disabled={saving}
-              >
-                {saving ? "Сохранение..." : "Добавить операцию"}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={saveStorage}>
-              <SelectField
-                label="Клиент *"
-                value={clientId}
-                onChange={setClientId}
-                options={clients.map((c) => ({
-                  value: c.id,
-                  label: c.name,
-                }))}
-              />
-
-              <Field
-                label="Объем, м³ *"
-                value={volume}
-                onChange={setVolume}
-                type="number"
-                placeholder="0.0000"
-              />
-
-              <div style={styles.formGrid}>
-                <Field
-                  label="Дата начала *"
-                  value={startDate}
-                  onChange={setStartDate}
-                  type="date"
-                />
-
-                <Field
-                  label="Дата окончания *"
-                  value={endDate}
-                  onChange={setEndDate}
-                  type="date"
-                />
-              </div>
-
-              <div style={styles.pricePreview}>
-                <div>
-                  <span style={styles.priceLabel}>Тариф</span>
-                  <strong>
-                    {storagePrice !== null
-                      ? `${money(storagePrice)} / м³ / день`
-                      : "—"}
-                  </strong>
-                </div>
-
-                <div>
-                  <span style={styles.priceLabel}>Дней</span>
-                  <strong>{storageDays}</strong>
-                </div>
-
-                <div>
-                  <span style={styles.priceLabel}>Итого</span>
-                  <strong style={styles.totalPrice}>
-                    {money(storageTotal)}
-                  </strong>
-                </div>
-              </div>
-
-              <Field
-                label="Комментарий"
-                value={note}
-                onChange={setNote}
-                textarea
-              />
-
-              {error && <div style={styles.error}>{error}</div>}
-              {success && <div style={styles.success}>{success}</div>}
-
-              <button
-                type="submit"
-                style={styles.primaryButton}
-                disabled={saving}
-              >
-                {saving ? "Сохранение..." : "Добавить хранение"}
-              </button>
-            </form>
-          )}
-        </div>
-
-        <div style={styles.panel}>
-          <div style={styles.panelHeader}>
-            <div>
-              <h3 style={styles.panelTitle}>Последние операции</h3>
-              <p style={styles.sectionSubtitle}>
-                Новые записи появляются автоматически.
-              </p>
-            </div>
-          </div>
-
-          {loading ? (
-            <Loading />
-          ) : operations.length === 0 && storage.length === 0 ? (
-            <Empty
-              title="Операций пока нет"
-              text="Первая операция появится здесь."
-            />
-          ) : (
-            <div style={styles.list}>
-              {operations.map((operation) => (
-                <div key={operation.id} style={styles.compactRow}>
-                  <div style={styles.operationIcon}>₽</div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={styles.rowTitle}>
-                      {operation.clients?.name}
-                    </div>
-
-                    <div style={styles.rowSubtitle}>
-                      {operation.products?.sku} ·{" "}
-                      {tariffLabels[operation.tariff_type]} ·{" "}
-                      {formatDate(operation.shipment_date)}
-                    </div>
-                  </div>
-
-                  <strong>{money(operation.total_rub)}</strong>
-                </div>
-              ))}
-
-              {storage.map((record) => (
-                <div key={record.id} style={styles.compactRow}>
-                  <div style={styles.storageIcon}>◇</div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={styles.rowTitle}>
-                      {record.clients?.name}
-                    </div>
-
-                    <div style={styles.rowSubtitle}>
-                      Хранение · {record.volume_m3} м³ ·{" "}
-                      {formatDate(record.start_date)}
-                    </div>
-                  </div>
-
-                  <strong>{money(record.total_rub)}</strong>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Payable() {
-  const [from, setFrom] = useState(firstDayOfMonth());
-  const [to, setTo] = useState(today());
-  const [shipments, setShipments] = useState([]);
-  const [storage, setStorage] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    load();
-  }, [from, to]);
-
-  async function load() {
-    setLoading(true);
-
-    const [shipmentsResult, storageResult] = await Promise.all([
-      supabase
-        .from("shipments")
-        .select("*, clients(name), products(name,sku)")
-        .eq("status", "active")
-        .gte("shipment_date", from)
-        .lte("shipment_date", to)
-        .order("shipment_date", { ascending: false }),
-
-      supabase
-        .from("storage_records")
-        .select("*, clients(name)")
-        .neq("status", "cancelled")
-        .lte("start_date", to)
-        .gte("end_date", from)
-        .order("start_date", { ascending: false }),
-    ]);
-
-    setShipments(shipmentsResult.data || []);
-    setStorage(storageResult.data || []);
-    setLoading(false);
-  }
-
-  const total =
-    shipments.reduce((sum, item) => sum + Number(item.total_rub || 0), 0) +
-    storage.reduce((sum, item) => {
-      const start = new Date(
-        `${item.start_date}T00:00:00`
-      );
-      const end = new Date(`${item.end_date}T00:00:00`);
-      const rangeStart = new Date(`${from}T00:00:00`);
-      const rangeEnd = new Date(`${to}T00:00:00`);
-
-      const actualStart = start > rangeStart ? start : rangeStart;
-      const actualEnd = end < rangeEnd ? end : rangeEnd;
-
-      const days = Math.max(
-        0,
-        Math.floor((actualEnd - actualStart) / 86400000) + 1
-      );
-
-      return (
-        sum +
-        Number(item.volume_m3 || 0) *
-          days *
-          Number(item.price_per_m3_day_rub || 0)
-      );
-    }, 0);
-
-  return (
-    <div>
-      <PageHeader
-        title="К оплате"
-        subtitle="Активные начисления за выбранный период"
-      />
-
-      <div style={styles.periodToolbar}>
-        <div>
-          <div style={styles.periodLabel}>ПЕРИОД</div>
-          <div style={styles.periodInputs}>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              style={styles.dateInput}
-            />
-            <span>—</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              style={styles.dateInput}
-            />
-          </div>
-        </div>
-
-        <div style={styles.payableTotal}>
-          <span>К оплате</span>
-          <strong>{money(total)}</strong>
-        </div>
-      </div>
-
-      <div style={styles.panel}>
-        {loading ? (
-          <Loading />
-        ) : shipments.length === 0 && storage.length === 0 ? (
-          <Empty
-            title="Начислений нет"
-            text="За выбранный период активных начислений нет."
+          <SelectField
+            label="Клиент *"
+            value={tariffForm.client_id}
+            onChange={(v) =>
+              setTariffForm({
+                ...tariffForm,
+                client_id: v,
+                product_id: "",
+              })
+            }
+            options={clients.map((c) => ({
+              value: c.id,
+              label: c.name,
+            }))}
           />
-        ) : (
-          <div style={styles.list}>
-            {shipments.map((item) => (
-              <div key={item.id} style={styles.listRow}>
-                <div style={styles.operationIcon}>₽</div>
 
-                <div style={{ flex: 1 }}>
-                  <div style={styles.rowTitle}>
-                    {item.clients?.name}
-                  </div>
+          <SelectField
+            label="Тип тарифа"
+            value={tariffForm.tariff_type}
+            onChange={(v) =>
+              setTariffForm({
+                ...tariffForm,
+                tariff_type: v,
+                product_id: "",
+              })
+            }
+            options={[
+              { value: "small", label: "Малый" },
+              { value: "medium", label: "Средний" },
+              { value: "large", label: "Большой" },
+              { value: "storage", label: "Хранение" },
+            ]}
+          />
 
-                  <div style={styles.rowSubtitle}>
-                    {item.products?.sku} ·{" "}
-                    {tariffLabels[item.tariff_type]} ·{" "}
-                    {item.quantity} ед. ·{" "}
-                    {formatDate(item.shipment_date)}
-                  </div>
-                </div>
+          {tariffForm.tariff_type !== "storage" && (
+            <SelectField
+              label="Номенклатура"
+              value={tariffForm.product_id}
+              onChange={(v) =>
+                setTariffForm({
+                  ...tariffForm,
+                  product_id: v,
+                })
+              }
+              options={[
+                { value: "", label: "Для всего клиента" },
+                ...selectedClientProducts.map((p) => ({
+                  value: p.id,
+                  label: `${p.sku} — ${p.name}`,
+                })),
+              ]}
+            />
+          )}
 
-                <div style={styles.payableItemAmount}>
-                  {money(item.total_rub)}
-                </div>
+          <div className="form-grid">
+            <FormField
+              label="Цена, ₽ *"
+              type="number"
+              value={tariffForm.price_rub}
+              onChange={(v) =>
+                setTariffForm({
+                  ...tariffForm,
+                  price_rub: v,
+                })
+              }
+            />
 
-                <div style={styles.statusBadgeWarm}>
-                  Не выставлено
-                </div>
-              </div>
-            ))}
-
-            {storage.map((item) => (
-              <div key={item.id} style={styles.listRow}>
-                <div style={styles.storageIcon}>◇</div>
-
-                <div style={{ flex: 1 }}>
-                  <div style={styles.rowTitle}>
-                    {item.clients?.name}
-                  </div>
-
-                  <div style={styles.rowSubtitle}>
-                    Хранение · {item.volume_m3} м³ ·{" "}
-                    {formatDate(item.start_date)} —{" "}
-                    {formatDate(item.end_date)}
-                  </div>
-                </div>
-
-                <div style={styles.payableItemAmount}>
-                  {money(item.total_rub)}
-                </div>
-
-                <div style={styles.statusBadgeWarm}>
-                  Не выставлено
-                </div>
-              </div>
-            ))}
+            <FormField
+              label="Действует с"
+              type="date"
+              value={tariffForm.effective_from}
+              onChange={(v) =>
+                setTariffForm({
+                  ...tariffForm,
+                  effective_from: v,
+                })
+              }
+            />
           </div>
-        )}
-      </div>
+
+          <FormField
+            label="Заметки"
+            value={tariffForm.notes}
+            onChange={(v) =>
+              setTariffForm({
+                ...tariffForm,
+                notes: v,
+              })
+            }
+            textarea
+          />
+
+          <ModalActions
+            onCancel={() => setShowTariffForm(false)}
+            onSave={saveTariff}
+          />
+        </Modal>
+      )}
     </div>
   );
 }
 
-function History() {
-  const [shipments, setShipments] = useState([]);
-  const [storage, setStorage] = useState([]);
-  const [filter, setFilter] = useState("all");
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
+function OperationsPage({
+  shipments,
+  storageRecords,
+  openOperation,
+  cancelShipment,
+  cancelStorage,
+}) {
+  return (
+    <div>
+      <PageHeader
+        eyebrow="ОПЕРАЦИИ"
+        title="Операции"
+        description="Начисления за выполненные услуги"
+        action={
+          <button className="primary-button" onClick={openOperation}>
+            + Новая операция
+          </button>
+        }
+      />
 
-  useEffect(() => {
-    load();
-  }, []);
+      <div className="operation-summary">
+        <InfoCard
+          label="Активные операции"
+          value={
+            shipments.filter((s) => s.status === "active").length
+          }
+        />
 
-  async function load() {
-    setLoading(true);
+        <InfoCard
+          label="Отменённые"
+          value={
+            shipments.filter((s) => s.status === "cancelled").length
+          }
+        />
 
-    const [shipmentsResult, storageResult] = await Promise.all([
-      supabase
-        .from("shipments")
-        .select("*, clients(name), products(name,sku)")
-        .order("created_at", { ascending: false })
-        .limit(100),
+        <InfoCard
+          label="Хранение"
+          value={storageRecords.length}
+        />
+      </div>
 
-      supabase
-        .from("storage_records")
-        .select("*, clients(name)")
-        .order("created_at", { ascending: false })
-        .limit(100),
-    ]);
+      <section className="section-block">
+        <div className="section-heading">
+          <div>
+            <div className="section-eyebrow">НАЧИСЛЕНИЯ</div>
+            <h2>Операции</h2>
+          </div>
+        </div>
 
-    setShipments(shipmentsResult.data || []);
-    setStorage(storageResult.data || []);
-    setLoading(false);
-  }
+        {shipments.length === 0 ? (
+          <EmptyState text="Операций пока нет" />
+        ) : (
+          <div className="data-list">
+            {shipments.map((item) => (
+              <OperationCard
+                key={item.id}
+                item={item}
+                onCancel={
+                  item.status === "active"
+                    ? () => cancelShipment(item.id)
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
-  async function cancelShipment(id) {
-    if (!window.confirm("Отменить эту операцию?")) return;
+      {storageRecords.length > 0 && (
+        <section className="section-block">
+          <div className="section-heading">
+            <div>
+              <div className="section-eyebrow">ХРАНЕНИЕ</div>
+              <h2>Хранение</h2>
+            </div>
+          </div>
 
-    const { error } = await supabase.rpc("cancel_shipment", {
-      p_id: id,
-    });
+          <div className="data-list">
+            {storageRecords.map((item) => (
+              <StorageCard
+                key={item.id}
+                item={item}
+                onCancel={
+                  item.status !== "cancelled"
+                    ? () => cancelStorage(item.id)
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
 
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
+function PayablePage({
+  periodFrom,
+  setPeriodFrom,
+  periodTo,
+  setPeriodTo,
+  periodShipments,
+  periodStorage,
+  payableTotal,
+}) {
+  const shipmentTotal = periodShipments.reduce(
+    (sum, item) => sum + Number(item.total_rub || 0),
+    0
+  );
 
-    setMessage("Операция отменена.");
-    await load();
-  }
+  const storageTotal = periodStorage.reduce(
+    (sum, item) => sum + Number(item.total_rub || 0),
+    0
+  );
 
-  async function cancelStorage(id) {
-    if (!window.confirm("Отменить запись хранения?")) return;
+  return (
+    <div>
+      <PageHeader
+        eyebrow="ФИНАНСЫ"
+        title="К оплате"
+        description="Активные начисления за выбранный период"
+      />
 
-    const { error } = await supabase.rpc("cancel_storage", {
-      p_id: id,
-    });
+      <div className="period-panel">
+        <div>
+          <label>С</label>
+          <input
+            type="date"
+            value={periodFrom}
+            onChange={(e) => setPeriodFrom(e.target.value)}
+          />
+        </div>
 
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
+        <div>
+          <label>По</label>
+          <input
+            type="date"
+            value={periodTo}
+            onChange={(e) => setPeriodTo(e.target.value)}
+          />
+        </div>
+      </div>
 
-    setMessage("Хранение отменено.");
-    await load();
-  }
+      <div className="payable-hero">
+        <div>
+          <div className="section-eyebrow">ИТОГО</div>
+          <div className="payable-number">{money(payableTotal)}</div>
+          <div className="muted-text">
+            сумма активных начислений за период
+          </div>
+        </div>
+      </div>
 
-  const rows = [
-    ...(filter !== "storage"
-      ? shipments.map((x) => ({
-          ...x,
-          recordType: "shipment",
-          date: x.shipment_date,
-          title: x.clients?.name,
-          subtitle: `${x.products?.sku || "—"} · ${
-            tariffLabels[x.tariff_type]
-          } · ${x.quantity} ед.`,
-          amount: x.total_rub,
-          status: x.status,
-        }))
-      : []),
+      <div className="stats-grid">
+        <StatCard
+          label="Операции"
+          value={money(shipmentTotal)}
+          caption={`${periodShipments.length} операций`}
+          money
+        />
 
-    ...(filter !== "operations"
-      ? storage.map((x) => ({
-          ...x,
-          recordType: "storage",
-          date: x.start_date,
-          title: x.clients?.name,
-          subtitle: `Хранение · ${x.volume_m3} м³ · ${formatDate(
-            x.start_date
-          )} — ${formatDate(x.end_date)}`,
-          amount: x.total_rub,
-          status: x.status,
-        }))
-      : []),
+        <StatCard
+          label="Хранение"
+          value={money(storageTotal)}
+          caption={`${periodStorage.length} записей`}
+          money
+        />
+      </div>
+
+      <section className="section-block">
+        <div className="section-heading">
+          <div>
+            <div className="section-eyebrow">РАСШИФРОВКА</div>
+            <h2>Начисления</h2>
+          </div>
+        </div>
+
+        {periodShipments.length === 0 && periodStorage.length === 0 ? (
+          <EmptyState text="За выбранный период начислений нет" />
+        ) : (
+          <div className="data-list">
+            {periodShipments.map((item) => (
+              <OperationCard key={item.id} item={item} />
+            ))}
+
+            {periodStorage.map((item) => (
+              <StorageCard key={item.id} item={item} />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function HistoryPage({
+  shipments,
+  storageRecords,
+  auditLog,
+}) {
+  const historyItems = [
+    ...shipments.map((item) => ({
+      id: item.id,
+      date: item.shipment_date,
+      type: "Операция",
+      name: item.clients?.name || "—",
+      amount: item.total_rub,
+      status: item.status,
+    })),
+    ...storageRecords.map((item) => ({
+      id: item.id,
+      date: item.start_date,
+      type: "Хранение",
+      name: item.clients?.name || "—",
+      amount: item.total_rub,
+      status: item.status,
+    })),
   ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
   return (
     <div>
       <PageHeader
+        eyebrow="КОНТРОЛЬ"
         title="История"
-        subtitle="Все операции сохраняются в базе и не удаляются физически"
+        description="История операций и системных изменений"
       />
 
-      <div style={styles.toolbar}>
-        <div style={styles.filterGroup}>
-          <button
-            style={{
-              ...styles.filterButton,
-              ...(filter === "all" ? styles.filterActive : {}),
-            }}
-            onClick={() => setFilter("all")}
-          >
-            Все
-          </button>
-
-          <button
-            style={{
-              ...styles.filterButton,
-              ...(filter === "operations" ? styles.filterActive : {}),
-            }}
-            onClick={() => setFilter("operations")}
-          >
-            Услуги
-          </button>
-
-          <button
-            style={{
-              ...styles.filterButton,
-              ...(filter === "storage" ? styles.filterActive : {}),
-            }}
-            onClick={() => setFilter("storage")}
-          >
-            Хранение
-          </button>
+      <section className="section-block">
+        <div className="section-heading">
+          <div>
+            <div className="section-eyebrow">ОПЕРАЦИИ</div>
+            <h2>История начислений</h2>
+          </div>
         </div>
-      </div>
 
-      {message && <div style={styles.success}>{message}</div>}
-
-      <div style={styles.panel}>
-        {loading ? (
-          <Loading />
-        ) : rows.length === 0 ? (
-          <Empty
-            title="История пуста"
-            text="После первой операции она появится здесь."
-          />
+        {historyItems.length === 0 ? (
+          <EmptyState text="История пока пуста" />
         ) : (
-          <div style={styles.list}>
-            {rows.map((row) => (
-              <div key={row.id} style={styles.listRow}>
-                <div
-                  style={
-                    row.recordType === "storage"
-                      ? styles.storageIcon
-                      : styles.operationIcon
-                  }
-                >
-                  {row.recordType === "storage" ? "◇" : "₽"}
+          <div className="data-list">
+            {historyItems.map((item) => (
+              <div className="history-card" key={`${item.type}-${item.id}`}>
+                <div className="history-main">
+                  <div className="history-type">{item.type}</div>
+                  <strong>{item.name}</strong>
+                  <span>{dateRu(item.date)}</span>
                 </div>
 
-                <div style={{ flex: 1 }}>
-                  <div style={styles.rowTitle}>{row.title}</div>
-                  <div style={styles.rowSubtitle}>
-                    {row.subtitle}
-                  </div>
+                <div className="history-side">
+                  <strong>{money(item.amount)}</strong>
+                  <StatusBadge status={item.status} />
                 </div>
-
-                <div>
-                  <div style={styles.payableItemAmount}>
-                    {money(row.amount)}
-                  </div>
-                  <div style={styles.rowDate}>
-                    {formatDate(row.date)}
-                  </div>
-                </div>
-
-                <Status status={row.status} />
-
-                {row.status !== "cancelled" && (
-                  <button
-                    style={styles.cancelButton}
-                    onClick={() =>
-                      row.recordType === "storage"
-                        ? cancelStorage(row.id)
-                        : cancelShipment(row.id)
-                    }
-                  >
-                    Отменить
-                  </button>
-                )}
               </div>
             ))}
           </div>
+        )}
+      </section>
+
+      <section className="section-block">
+        <div className="section-heading">
+          <div>
+            <div className="section-eyebrow">AUDIT</div>
+            <h2>Журнал изменений</h2>
+          </div>
+        </div>
+
+        {auditLog.length === 0 ? (
+          <EmptyState text="Записей аудита пока нет" />
+        ) : (
+          <div className="audit-list">
+            {auditLog.slice(0, 50).map((item) => (
+              <div className="audit-card" key={item.id}>
+                <div>
+                  <strong>{item.entity_type}</strong>
+                  <span>{item.action}</span>
+                </div>
+
+                <time>
+                  {item.changed_at
+                    ? new Date(item.changed_at).toLocaleString("ru-RU")
+                    : "—"}
+                </time>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function PageHeader({
+  eyebrow,
+  title,
+  description,
+  action,
+}) {
+  return (
+    <div className="page-header">
+      <div className="page-header-copy">
+        <div className="section-eyebrow">{eyebrow}</div>
+        <h1>{title}</h1>
+        {description && <p>{description}</p>}
+      </div>
+
+      {action && <div className="page-header-action">{action}</div>}
+    </div>
+  );
+}
+
+function StatCard({ label, value, caption }) {
+  return (
+    <div className="stat-card">
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+      <div className="stat-caption">{caption}</div>
+    </div>
+  );
+}
+
+function QuickCard({ title, text, onClick }) {
+  return (
+    <button className="quick-card" onClick={onClick}>
+      <div className="quick-arrow">↗</div>
+      <strong>{title}</strong>
+      <span>{text}</span>
+    </button>
+  );
+}
+
+function ClientCard({ client, onOpen, onEdit }) {
+  return (
+    <div className="data-card clickable-card" onClick={onOpen}>
+      <div className="card-main">
+        <div className="card-eyebrow">КЛИЕНТ</div>
+        <h3>{client.name}</h3>
+
+        <div className="card-details">
+          {client.contact_name && (
+            <span>{client.contact_name}</span>
+          )}
+          {client.phone && <span>{client.phone}</span>}
+          {client.email && <span>{client.email}</span>}
+        </div>
+      </div>
+
+      <div className="card-actions">
+        <button
+          className="small-button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+        >
+          Изменить
+        </button>
+
+        <span className="card-arrow">→</span>
+      </div>
+    </div>
+  );
+}
+
+function ProductCard({ product, clientName, onEdit }) {
+  return (
+    <div className="data-card">
+      <div className="card-main">
+        <div className="card-eyebrow">
+          {product.sku}
+        </div>
+
+        <h3>{product.name}</h3>
+
+        <div className="card-details">
+          {clientName && <span>{clientName}</span>}
+          {product.size_type && (
+            <span>{tariffLabels[product.size_type]}</span>
+          )}
+
+          {product.length_cm &&
+            product.width_cm &&
+            product.height_cm && (
+              <span>
+                {product.length_cm} × {product.width_cm} ×{" "}
+                {product.height_cm} см
+              </span>
+            )}
+        </div>
+      </div>
+
+      <div className="card-actions">
+        <button className="small-button" onClick={onEdit}>
+          Изменить
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TariffCard({ tariff }) {
+  const clientName = tariff.clients?.name || "—";
+  const productName = tariff.products?.name;
+
+  return (
+    <div className="data-card">
+      <div className="card-main">
+        <div className="card-eyebrow">
+          {tariffLabels[tariff.tariff_type]}
+        </div>
+
+        <h3>{clientName}</h3>
+
+        <div className="card-details">
+          <span>
+            {productName
+              ? `Номенклатура: ${productName}`
+              : "Тариф клиента"}
+          </span>
+          <span>
+            Действует с {dateRu(tariff.effective_from)}
+          </span>
+        </div>
+      </div>
+
+      <div className="amount-block">
+        {money(tariff.price_rub)}
+      </div>
+    </div>
+  );
+}
+
+function OperationCard({ item, onCancel }) {
+  return (
+    <div className="data-card">
+      <div className="card-main">
+        <div className="card-eyebrow">
+          {tariffLabels[item.tariff_type] || "Операция"}
+        </div>
+
+        <h3>{item.clients?.name || "Клиент"}</h3>
+
+        <div className="card-details">
+          <span>{dateRu(item.shipment_date)}</span>
+
+          {item.products?.name && (
+            <span>{item.products.name}</span>
+          )}
+
+          <span>Количество: {item.quantity}</span>
+
+          {item.note && <span>{item.note}</span>}
+        </div>
+      </div>
+
+      <div className="card-side">
+        <div className="amount-block">
+          {money(item.total_rub)}
+        </div>
+
+        <StatusBadge status={item.status} />
+
+        {onCancel && (
+          <button
+            className="danger-button"
+            onClick={onCancel}
+          >
+            Отменить
+          </button>
         )}
       </div>
     </div>
   );
 }
 
-function Status({ status }) {
-  if (status === "cancelled") {
-    return <div style={styles.statusCancelled}>Отменено</div>;
-  }
-
-  if (status === "planned") {
-    return <div style={styles.statusPlanned}>Запланировано</div>;
-  }
-
-  return <div style={styles.statusActive}>Активно</div>;
-}
-
-function PageHeader({ title, subtitle, button, onClick }) {
+function StorageCard({ item, onCancel }) {
   return (
-    <div style={styles.pageHeader}>
-      <div>
-        <h1 style={styles.pageTitle}>{title}</h1>
-        <p style={styles.pageDescription}>{subtitle}</p>
-      </div>
+    <div className="data-card">
+      <div className="card-main">
+        <div className="card-eyebrow">ХРАНЕНИЕ</div>
 
-      {button && (
-        <button style={styles.primaryButtonSmall} onClick={onClick}>
-          {button}
-        </button>
-      )}
-    </div>
-  );
-}
+        <h3>{item.clients?.name || "Клиент"}</h3>
 
-function PageForm({ title, subtitle, onBack, children }) {
-  return (
-    <div>
-      <button style={styles.backButton} onClick={onBack}>
-        ← Назад
-      </button>
+        <div className="card-details">
+          <span>
+            {dateRu(item.start_date)} —{" "}
+            {dateRu(item.end_date)}
+          </span>
 
-      <div style={styles.pageHeader}>
-        <div>
-          <h1 style={styles.pageTitle}>{title}</h1>
-          <p style={styles.pageDescription}>{subtitle}</p>
+          <span>
+            Объём: {item.volume_m3} м³
+          </span>
         </div>
       </div>
 
-      <div style={styles.panelForm}>{children}</div>
+      <div className="card-side">
+        <div className="amount-block">
+          {money(item.total_rub)}
+        </div>
+
+        <StatusBadge status={item.status} />
+
+        {onCancel && (
+          <button
+            className="danger-button"
+            onClick={onCancel}
+          >
+            Отменить
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-function Field({
+function StatusBadge({ status }) {
+  const labels = {
+    active: "Активно",
+    cancelled: "Отменено",
+    planned: "Запланировано",
+    completed: "Завершено",
+  };
+
+  return (
+    <span className={`status-badge status-${status}`}>
+      {labels[status] || status}
+    </span>
+  );
+}
+
+function InfoCard({ label, value }) {
+  return (
+    <div className="info-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function EmptyState({ text }) {
+  return (
+    <div className="empty-state">
+      <div className="empty-icon">—</div>
+      <div>{text}</div>
+    </div>
+  );
+}
+
+function Modal({
+  title,
+  children,
+  onClose,
+}) {
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div
+        className="modal"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h2>{title}</h2>
+
+          <button
+            className="modal-close"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function ModalActions({
+  onCancel,
+  onSave,
+  saveText = "Сохранить",
+}) {
+  return (
+    <div className="modal-actions">
+      <button
+        className="secondary-button"
+        onClick={onCancel}
+      >
+        Отмена
+      </button>
+
+      <button
+        className="primary-button"
+        onClick={onSave}
+      >
+        {saveText}
+      </button>
+    </div>
+  );
+}
+
+function FormField({
   label,
   value,
   onChange,
-  placeholder,
   type = "text",
   textarea = false,
-  min,
 }) {
   return (
-    <div style={styles.field}>
-      <label style={styles.label}>{label}</label>
+    <label className="form-field">
+      <span>{label}</span>
 
       {textarea ? (
         <textarea
-          style={styles.textarea}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
           rows={4}
         />
       ) : (
         <input
-          style={styles.input}
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          min={min}
         />
       )}
-    </div>
+    </label>
   );
 }
 
-function SelectField({ label, value, onChange, options }) {
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+}) {
   return (
-    <div style={styles.field}>
-      <label style={styles.label}>{label}</label>
+    <label className="form-field">
+      <span>{label}</span>
 
       <select
-        style={styles.input}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        <option value="">Выберите...</option>
-
         {options.map((option) => (
-          <option key={option.value} value={option.value}>
+          <option
+            key={option.value}
+            value={option.value}
+          >
             {option.label}
           </option>
         ))}
       </select>
-    </div>
+    </label>
   );
 }
 
-function Loading() {
-  return <div style={styles.loadingBox}>Загрузка...</div>;
+function SearchIcon() {
+  return null;
 }
 
-function Empty({ title, text }) {
-  return (
-    <div style={styles.empty}>
-      <div style={styles.emptyIcon}>S</div>
-      <div style={styles.emptyTitle}>{title}</div>
-      <div style={styles.emptyText}>{text}</div>
-    </div>
-  );
+function AppStyles() {
+  return null;
 }
 
-const styles = {
-  loadingScreen: {
-    minHeight: "100vh",
-    background: GRAPHITE,
-    color: CHAMPAGNE,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontFamily: "Arial, sans-serif",
-    fontSize: 28,
-    letterSpacing: 6,
-  },
-
-  loginPage: {
-    minHeight: "100vh",
-    background: CREAM,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-    fontFamily: "Arial, sans-serif",
-  },
-
-  loginCard: {
-    width: "100%",
-    maxWidth: 430,
-    background: WHITE,
-    border: `1px solid ${BORDER}`,
-    borderRadius: 24,
-    padding: 38,
-    boxSizing: "border-box",
-    boxShadow: "0 20px 60px rgba(36,35,33,0.10)",
-    textAlign: "center",
-  },
-
-  logoMark: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    background: GRAPHITE,
-    color: CHAMPAGNE,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    margin: "0 auto 14px",
-    fontSize: 28,
-    fontWeight: 700,
-    boxShadow: `0 8px 24px rgba(200,181,138,0.22)`,
-  },
-
-  brandLarge: {
-    fontSize: 29,
-    fontWeight: 800,
-    letterSpacing: 5,
-    color: GRAPHITE,
-  },
-
-  brandSubtitle: {
-    fontSize: 9,
-    letterSpacing: 3,
-    color: MUTED,
-    marginTop: 5,
-  },
-
-  loginTitle: {
-    margin: 0,
-    color: TEXT,
-    fontSize: 24,
-  },
-
-  loginText: {
-    color: MUTED,
-    marginTop: 8,
-    marginBottom: 28,
-  },
-
-  shell: {
-    minHeight: "100vh",
-    background: CREAM,
-    display: "flex",
-    fontFamily: "Arial, sans-serif",
-    color: TEXT,
-  },
-
-  sidebar: {
-    width: 250,
-    flexShrink: 0,
-    background: GRAPHITE,
-    color: "#fff",
-    minHeight: "100vh",
-    padding: "26px 16px 18px",
-    boxSizing: "border-box",
-    display: "flex",
-    flexDirection: "column",
-    position: "sticky",
-    top: 0,
-    height: "100vh",
-    zIndex: 20,
-  },
-
-  sidebarMobileOpen: {
-    transform: "translateX(0)",
-  },
-
-  sidebarBrand: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "4px 10px 28px",
-  },
-
-  sidebarLogo: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    background: CHAMPAGNE,
-    color: GRAPHITE,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 21,
-    fontWeight: 800,
-  },
-
-  sidebarTitle: {
-    fontWeight: 800,
-    fontSize: 20,
-    letterSpacing: 3,
-  },
-
-  sidebarSub: {
-    color: CHAMPAGNE,
-    fontSize: 9,
-    letterSpacing: 3,
-    marginTop: 2,
-  },
-
-  menuCaption: {
-    fontSize: 9,
-    letterSpacing: 1.8,
-    color: "#9D9A94",
-    padding: "0 12px 10px",
-  },
-
-  menuItem: {
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    gap: 13,
-    padding: "12px 13px",
-    border: "none",
-    borderRadius: 11,
-    background: "transparent",
-    color: "#C9C6BF",
-    textAlign: "left",
-    fontSize: 14,
-    cursor: "pointer",
-    marginBottom: 3,
-  },
-
-  menuItemActive: {
-    background: "rgba(200,181,138,0.13)",
-    color: "#FFFDF9",
-    boxShadow: `inset 3px 0 0 ${CHAMPAGNE}`,
-  },
-
-  menuIcon: {
-    width: 20,
-    color: CHAMPAGNE,
-    fontSize: 18,
-    textAlign: "center",
-  },
-
-  sidebarBottom: {
-    marginTop: "auto",
-  },
-
-  accountBox: {
-    display: "flex",
-    alignItems: "center",
-    gap: 9,
-    padding: 12,
-    borderRadius: 12,
-    background: "rgba(255,255,255,0.04)",
-    marginBottom: 10,
-  },
-
-  accountDot: {
-    width: 8,
-    height: 8,
-    borderRadius: "50%",
-    background: "#9C9",
-    boxShadow: "0 0 8px rgba(150,200,150,0.5)",
-  },
-
-  accountLabel: {
-    fontSize: 11,
-    color: "#E4E0D7",
-  },
-
-  accountEmail: {
-    fontSize: 9,
-    color: "#88857F",
-    marginTop: 3,
-    maxWidth: 180,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-
-  logoutSidebar: {
-    width: "100%",
-    border: "1px solid rgba(255,255,255,0.1)",
-    background: "transparent",
-    color: "#A7A39C",
-    borderRadius: 10,
-    padding: 10,
-    cursor: "pointer",
-  },
-
-  content: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  topbar: {
-    minHeight: 76,
-    background: "rgba(255,253,249,0.96)",
-    borderBottom: `1px solid ${BORDER}`,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 32px",
-    boxSizing: "border-box",
-    position: "sticky",
-    top: 0,
-    zIndex: 10,
-  },
-
-  topbarTitle: {
-    fontSize: 17,
-    fontWeight: 700,
-    color: GRAPHITE,
-  },
-
-  topbarSub: {
-    fontSize: 11,
-    color: MUTED,
-    marginTop: 3,
-  },
-
-  topbarRight: {
-    display: "flex",
-    alignItems: "center",
-  },
-
-  statusBadge: {
-    background: "#F0F1EB",
-    color: "#62665B",
-    borderRadius: 20,
-    padding: "7px 11px",
-    fontSize: 11,
-    display: "flex",
-    alignItems: "center",
-    gap: 7,
-  },
-
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: "50%",
-    background: "#7E9975",
-  },
-
-  mobileMenuButton: {
-    display: "none",
-    border: "none",
-    background: "transparent",
-    fontSize: 24,
-    color: GRAPHITE,
-  },
-
-  pageArea: {
-    maxWidth: 1450,
-    margin: "0 auto",
-    padding: "34px",
-    boxSizing: "border-box",
-  },
-
-  pageHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    gap: 20,
-    marginBottom: 28,
-    flexWrap: "wrap",
-  },
-
-  pageTitle: {
-    margin: 0,
-    fontSize: 30,
-    color: GRAPHITE,
-    letterSpacing: -0.5,
-  },
-
-  pageDescription: {
-    margin: "7px 0 0",
-    color: MUTED,
-    fontSize: 14,
-  },
-
-  eyebrow: {
-    fontSize: 10,
-    letterSpacing: 2.2,
-    color: CHAMPAGNE,
-    fontWeight: 800,
-    marginBottom: 10,
-  },
-
-  hero: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    gap: 24,
-    marginBottom: 30,
-    flexWrap: "wrap",
-  },
-
-  periodBox: {
-    background: WHITE,
-    border: `1px solid ${BORDER}`,
-    borderRadius: 15,
-    padding: 14,
-  },
-
-  periodLabel: {
-    fontSize: 9,
-    color: MUTED,
-    letterSpacing: 1.5,
-    fontWeight: 700,
-    marginBottom: 8,
-  },
-
-  periodInputs: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    color: MUTED,
-  },
-
-  dateInput: {
-    border: `1px solid ${BORDER}`,
-    background: CREAM,
-    borderRadius: 8,
-    padding: "9px 10px",
-    color: TEXT,
-  },
-
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-    gap: 16,
-    marginBottom: 38,
-  },
-
-  statCard: {
-    background: WHITE,
-    border: `1px solid ${BORDER}`,
-    borderRadius: 17,
-    padding: 22,
-    minHeight: 135,
-    boxSizing: "border-box",
-  },
-
-  statCardAccent: {
-    background: GRAPHITE,
-    color: "#fff",
-    borderColor: GRAPHITE,
-    boxShadow: "0 10px 30px rgba(36,35,33,0.14)",
-  },
-
-  statTitle: {
-    fontSize: 12,
-    color: MUTED,
-    marginBottom: 15,
-  },
-
-  statValue: {
-    fontSize: 26,
-    fontWeight: 800,
-    letterSpacing: -0.5,
-  },
-
-  statCaption: {
-    fontSize: 11,
-    color: MUTED,
-    marginTop: 8,
-  },
-
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 20,
-    marginBottom: 16,
-  },
-
-  sectionTitle: {
-    margin: 0,
-    fontSize: 20,
-  },
-
-  sectionSubtitle: {
-    margin: "5px 0 0",
-    color: MUTED,
-    fontSize: 12,
-  },
-
-  panel: {
-    background: WHITE,
-    border: `1px solid ${BORDER}`,
-    borderRadius: 18,
-    padding: 22,
-    marginBottom: 22,
-    boxSizing: "border-box",
-  },
-
-  panelForm: {
-    maxWidth: 900,
-    background: WHITE,
-    border: `1px solid ${BORDER}`,
-    borderRadius: 18,
-    padding: 28,
-    boxSizing: "border-box",
-  },
-
-  panelHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 20,
-    marginBottom: 20,
-  },
-
-  panelTitle: {
-    margin: 0,
-    fontSize: 17,
-  },
-
-  clientSummaryGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 15,
-  },
-
-  summaryCard: {
-    border: `1px solid ${BORDER}`,
-    borderRadius: 15,
-    padding: 18,
-    background: "#FFFEFB",
-  },
-
-  summaryTop: {
-    display: "flex",
-    alignItems: "center",
-    gap: 11,
-  },
-
-  clientAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    background: CHAMPAGNE_LIGHT,
-    color: GRAPHITE,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 800,
-    flexShrink: 0,
-  },
-
-  summaryName: {
-    fontWeight: 700,
-    fontSize: 14,
-  },
-
-  summaryMeta: {
-    color: MUTED,
-    fontSize: 11,
-    marginTop: 4,
-  },
-
-  summaryAmount: {
-    fontSize: 23,
-    fontWeight: 800,
-    margin: "22px 0 14px",
-  },
-
-  summaryDetails: {
-    display: "flex",
-    justifyContent: "space-between",
-    fontSize: 11,
-    color: MUTED,
-    paddingTop: 8,
-    borderTop: `1px solid #EEEAE1`,
-    marginTop: 8,
-  },
-
-  toolbar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 18,
-    flexWrap: "wrap",
-  },
-
-  searchInput: {
-    width: "100%",
-    maxWidth: 520,
-    padding: "13px 15px",
-    border: `1px solid ${BORDER}`,
-    borderRadius: 11,
-    background: WHITE,
-    fontSize: 14,
-    outline: "none",
-    boxSizing: "border-box",
-  },
-
-  list: {
-    display: "flex",
-    flexDirection: "column",
-  },
-
-  listRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 18,
-    padding: "15px 4px",
-    borderBottom: `1px solid #EEEAE1`,
-    minWidth: 0,
-  },
-
-  clientIdentity: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-    minWidth: 220,
-  },
-
-  rowTitle: {
-    fontWeight: 700,
-    fontSize: 14,
-    color: TEXT,
-  },
-
-  rowSubtitle: {
-    color: MUTED,
-    fontSize: 11,
-    marginTop: 5,
-  },
-
-  rowInfo: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-    color: MUTED,
-    fontSize: 11,
-    minWidth: 170,
-  },
-
-  rowDate: {
-    color: MUTED,
-    fontSize: 10,
-    whiteSpace: "nowrap",
-  },
-
-  ghostButton: {
-    border: `1px solid ${BORDER}`,
-    background: WHITE,
-    color: TEXT,
-    padding: "8px 13px",
-    borderRadius: 9,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-
-  primaryButton: {
-    width: "100%",
-    border: "none",
-    background: GRAPHITE,
-    color: WHITE,
-    borderRadius: 11,
-    padding: 14,
-    fontSize: 14,
-    fontWeight: 700,
-    cursor: "pointer",
-    boxShadow: "0 8px 20px rgba(36,35,33,0.12)",
-  },
-
-  primaryButtonSmall: {
-    border: "none",
-    background: GRAPHITE,
-    color: WHITE,
-    borderRadius: 10,
-    padding: "11px 17px",
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-
-  secondaryButton: {
-    border: `1px solid ${BORDER}`,
-    background: WHITE,
-    color: TEXT,
-    borderRadius: 10,
-    padding: "10px 15px",
-    fontSize: 13,
-    cursor: "pointer",
-  },
-
-  backButton: {
-    border: "none",
-    background: "transparent",
-    color: MUTED,
-    padding: 0,
-    marginBottom: 20,
-    cursor: "pointer",
-    fontSize: 13,
-  },
-
-  label: {
-    display: "block",
-    color: TEXT,
-    fontSize: 11,
-    fontWeight: 700,
-    marginBottom: 7,
-  },
-
-  field: {
-    marginBottom: 17,
-  },
-
-  input: {
-    width: "100%",
-    border: `1px solid ${BORDER}`,
-    background: "#FFFEFB",
-    color: TEXT,
-    borderRadius: 9,
-    padding: "12px 13px",
-    fontSize: 14,
-    boxSizing: "border-box",
-    outline: "none",
-  },
-
-  textarea: {
-    width: "100%",
-    border: `1px solid ${BORDER}`,
-    background: "#FFFEFB",
-    color: TEXT,
-    borderRadius: 9,
-    padding: "12px 13px",
-    fontSize: 14,
-    boxSizing: "border-box",
-    resize: "vertical",
-    fontFamily: "Arial, sans-serif",
-  },
-
-  formGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: "0 16px",
-  },
-
-  formActions: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 10,
-    marginTop: 22,
-  },
-
-  error: {
-    background: "#F8E8E4",
-    color: "#8B4337",
-    border: "1px solid #EAC8C0",
-    padding: 11,
-    borderRadius: 9,
-    marginBottom: 14,
-    fontSize: 12,
-  },
-
-  success: {
-    background: "#EEF3E9",
-    color: "#5F7254",
-    border: "1px solid #D8E3D0",
-    padding: 11,
-    borderRadius: 9,
-    marginBottom: 14,
-    fontSize: 12,
-  },
-
-  empty: {
-    padding: "55px 20px",
-    textAlign: "center",
-  },
-
-  emptyIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    background: CHAMPAGNE_LIGHT,
-    color: GRAPHITE,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    margin: "0 auto 13px",
-    fontWeight: 800,
-  },
-
-  emptyTitle: {
-    fontWeight: 700,
-    fontSize: 15,
-  },
-
-  emptyText: {
-    color: MUTED,
-    fontSize: 12,
-    marginTop: 6,
-  },
-
-  loadingBox: {
-    padding: 45,
-    textAlign: "center",
-    color: MUTED,
-    fontSize: 13,
-  },
-
-  productIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    background: CHAMPAGNE_LIGHT,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: GRAPHITE,
-    fontSize: 18,
-    flexShrink: 0,
-  },
-
-  tariffGrid: {
-    display: "grid",
-    gridTemplateColumns: "1.3fr 1fr",
-    gap: 18,
-  },
-
-  systemTariffGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0,1fr))",
-    gap: 10,
-  },
-
-  systemTariff: {
-    background: CREAM,
-    borderRadius: 12,
-    padding: 15,
-  },
-
-  systemTariffName: {
-    color: MUTED,
-    fontSize: 11,
-  },
-
-  systemTariffPrice: {
-    fontSize: 17,
-    fontWeight: 800,
-    marginTop: 8,
-  },
-
-  ruleBox: {
-    display: "flex",
-    alignItems: "center",
-    gap: 13,
-    padding: "11px 0",
-    borderBottom: `1px solid #EEEAE1`,
-    fontSize: 12,
-  },
-
-  ruleBox: {
-    display: "flex",
-    alignItems: "center",
-    gap: 13,
-    padding: "11px 0",
-    borderBottom: `1px solid #EEEAE1`,
-    fontSize: 12,
-  },
-
-  tariffTypeBadge: {
-    background: CHAMPAGNE_LIGHT,
-    color: GRAPHITE,
-    padding: "6px 9px",
-    borderRadius: 20,
-    fontSize: 10,
-    whiteSpace: "nowrap",
-  },
-
-  tariffPrice: {
-    fontWeight: 800,
-    minWidth: 100,
-    textAlign: "right",
-  },
-
-  operationLayout: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-    gap: 20,
-  },
-
-  operationSwitch: {
-    display: "inline-flex",
-    background: "#EAE6DD",
-    padding: 4,
-    borderRadius: 10,
-    marginBottom: 18,
-  },
-
-  switchButton: {
-    border: "none",
-    background: "transparent",
-    borderRadius: 7,
-    padding: "9px 15px",
-    color: MUTED,
-    cursor: "pointer",
-    fontSize: 12,
-  },
-
-  switchActive: {
-    background: WHITE,
-    color: GRAPHITE,
-    boxShadow: "0 2px 8px rgba(36,35,33,0.08)",
-    fontWeight: 700,
-  },
-
-  pricePreview: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 20,
-    background: GRAPHITE,
-    color: WHITE,
-    borderRadius: 13,
-    padding: 17,
-    marginBottom: 18,
-  },
-
-  priceLabel: {
-    display: "block",
-    color: "#AAA69D",
-    fontSize: 9,
-    letterSpacing: 1,
-    marginBottom: 6,
-    textTransform: "uppercase",
-  },
-
-  totalPrice: {
-    color: CHAMPAGNE,
-    fontSize: 19,
-  },
-
-  operationIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    background: CHAMPAGNE_LIGHT,
-    color: GRAPHITE,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 800,
-    flexShrink: 0,
-  },
-
-  storageIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
-    background: "#ECE9E2",
-    color: GRAPHITE,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontWeight: 800,
-    flexShrink: 0,
-  },
-
-  compactRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 11,
-    padding: "12px 0",
-    borderBottom: `1px solid #EEEAE1`,
-  },
-
-  periodToolbar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 20,
-    padding: 18,
-    background: WHITE,
-    border: `1px solid ${BORDER}`,
-    borderRadius: 16,
-    marginBottom: 18,
-    flexWrap: "wrap",
-  },
-
-  payableTotal: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-end",
-    gap: 5,
-  },
-
-  payableTotal: {
-    color: MUTED,
-    fontSize: 11,
-  },
-
-  payableItemAmount: {
-    fontWeight: 800,
-    whiteSpace: "nowrap",
-  },
-
-  statusBadgeWarm: {
-    background: "#F5EBDD",
-    color: "#8A6B38",
-    padding: "6px 9px",
-    borderRadius: 20,
-    fontSize: 10,
-    whiteSpace: "nowrap",
-  },
-
-  statusActive: {
-    background: "#EDF2E9",
-    color: "#607456",
-    padding: "6px 9px",
-    borderRadius: 20,
-    fontSize: 10,
-    whiteSpace: "nowrap",
-  },
-
-  statusPlanned: {
-    background: "#F5EBDD",
-    color: "#8A6B38",
-    padding: "6px 9px",
-    borderRadius: 20,
-    fontSize: 10,
-    whiteSpace: "nowrap",
-  },
-
-  statusCancelled: {
-    background: "#F5E7E4",
-    color: "#8B5148",
-    padding: "6px 9px",
-    borderRadius: 20,
-    fontSize: 10,
-    whiteSpace: "nowrap",
-  },
-
-  cancelButton: {
-    border: "none",
-    background: "transparent",
-    color: "#9A6D64",
-    cursor: "pointer",
-    fontSize: 11,
-    whiteSpace: "nowrap",
-  },
-
-  filterGroup: {
-    display: "flex",
-    gap: 5,
-    background: "#EAE6DD",
-    borderRadius: 10,
-    padding: 4,
-  },
-
-  filterButton: {
-    border: "none",
-    background: "transparent",
-    color: MUTED,
-    padding: "8px 13px",
-    borderRadius: 7,
-    cursor: "pointer",
-    fontSize: 12,
-  },
-
-  filterActive: {
-    background: WHITE,
-    color: GRAPHITE,
-    fontWeight: 700,
-    boxShadow: "0 2px 7px rgba(36,35,33,0.07)",
-  },
-
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(36,35,33,0.45)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-    zIndex: 100,
-  },
-
-  modal: {
-    width: "100%",
-    maxWidth: 620,
-    maxHeight: "90vh",
-    overflowY: "auto",
-    background: WHITE,
-    borderRadius: 20,
-    padding: 26,
-    boxSizing: "border-box",
-    boxShadow: "0 25px 80px rgba(36,35,33,0.25)",
-  },
-
-  modalHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 20,
-    marginBottom: 22,
-  },
-
-  modalTitle: {
-    margin: 0,
-    fontSize: 21,
-  },
-
-  closeButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    border: `1px solid ${BORDER}`,
-    background: CREAM,
-    color: MUTED,
-    fontSize: 21,
-    cursor: "pointer",
-  },
-};
-
-createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+createRoot(document.getElementById("root")).render(<App />);
