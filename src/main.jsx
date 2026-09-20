@@ -2,1105 +2,1181 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
 
-import "./styles.css";
-
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
-const money = (value) =>
-  new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "RUB",
-    maximumFractionDigits: 2,
-  }).format(Number(value || 0));
+/* =========================================================
+   SORTEX WMS
+   Graphite + Champagne
+   Single-file responsive application
+   ========================================================= */
 
-const dateRu = (value) => {
+const APP_CSS = `
+:root {
+  --graphite: #242321;
+  --graphite-soft: #302E2A;
+  --champagne: #C8B58A;
+  --champagne-light: #E8DEC8;
+  --milk: #F7F5F0;
+  --card: #FFFDF9;
+  --border: #DED9CF;
+  --text: #292825;
+  --muted: #77736B;
+  --green: #71806B;
+  --amber: #A48B59;
+  --blue: #6C7C8E;
+  --wine: #865D5D;
+  --shadow: 0 8px 28px rgba(36,35,33,.07);
+  --shadow-soft: 0 3px 14px rgba(36,35,33,.06);
+  --radius: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  width: 100%;
+}
+
+html {
+  background: var(--milk);
+}
+
+body {
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
+  background: var(--milk);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--champagne);
+  outline-offset: 2px;
+}
+
+.app {
+  min-height: 100vh;
+  background:
+    radial-gradient(
+      circle at 85% 0%,
+      rgba(200,181,138,.10),
+      transparent 28%
+    ),
+    var(--milk);
+}
+
+.sidebar {
+  position: fixed;
+  z-index: 30;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 245px;
+  background: var(--graphite);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 25px 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 9px 30px;
+}
+
+.brand-mark {
+  width: 39px;
+  height: 39px;
+  border-radius: 12px;
+  border: 1px solid rgba(232,222,200,.35);
+  background: linear-gradient(145deg, #35322d, #242321);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--champagne-light);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  box-shadow: 0 0 20px rgba(200,181,138,.08);
+}
+
+.brand-name {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+
+.brand-sub {
+  color: rgba(232,222,200,.58);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  margin-top: 2px;
+  text-transform: uppercase;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nav-button {
+  position: relative;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,.64);
+  text-align: left;
+  padding: 12px 13px;
+  border-radius: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  transition: .18s ease;
+}
+
+.nav-button:hover {
+  background: rgba(255,255,255,.045);
+  color: #fff;
+}
+
+.nav-button.active {
+  background: rgba(200,181,138,.11);
+  color: var(--champagne-light);
+}
+
+.nav-button.active::before {
+  content: "";
+  position: absolute;
+  left: -16px;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--champagne);
+  box-shadow: 0 0 10px rgba(200,181,138,.30);
+}
+
+.nav-icon {
+  width: 21px;
+  text-align: center;
+  opacity: .9;
+}
+
+.sidebar-bottom {
+  margin-top: auto;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.user-mini {
+  padding: 10px 11px;
+  color: rgba(255,255,255,.60);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logout-button {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid rgba(232,222,200,.14);
+  background: transparent;
+  color: rgba(255,255,255,.68);
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.logout-button:hover {
+  border-color: rgba(232,222,200,.30);
+  color: var(--champagne-light);
+}
+
+.main {
+  margin-left: 245px;
+  min-height: 100vh;
+}
+
+.topbar {
+  height: 72px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(222,217,207,.8);
+  background: rgba(247,245,240,.90);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topbar-title {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -.3px;
+}
+
+.topbar-date {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.content {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 30px 32px 50px;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 29px;
+  font-weight: 750;
+  letter-spacing: -.7px;
+  margin: 0;
+}
+
+.page-subtitle {
+  color: var(--muted);
+  margin-top: 7px;
+  font-size: 14px;
+}
+
+.card {
+  background: rgba(255,253,249,.96);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+}
+
+.card-pad {
+  padding: 21px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  min-height: 128px;
+  padding: 19px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::after {
+  content: "";
+  position: absolute;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  right: -48px;
+  bottom: -58px;
+  background: rgba(200,181,138,.10);
+  filter: blur(2px);
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+}
+
+.stat-value {
+  margin-top: 12px;
+  font-size: 27px;
+  font-weight: 750;
+  letter-spacing: -.7px;
+}
+
+.stat-value.accent {
+  color: #9D8450;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.search {
+  flex: 1;
+  min-width: 230px;
+  position: relative;
+}
+
+.search input {
+  width: 100%;
+  height: 45px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--card);
+  color: var(--text);
+  padding: 0 14px 0 41px;
+}
+
+.search input::placeholder {
+  color: #9A968E;
+}
+
+.search-symbol {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+}
+
+.button {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 11px;
+  min-height: 45px;
+  padding: 0 16px;
+  cursor: pointer;
+  transition: .18s ease;
+}
+
+.button:hover {
+  border-color: #CBBE9F;
+  box-shadow: 0 0 0 3px rgba(200,181,138,.08);
+}
+
+.button.primary {
+  background: var(--graphite);
+  border-color: var(--graphite);
+  color: var(--champagne-light);
+}
+
+.button.primary:hover {
+  background: var(--graphite-soft);
+  box-shadow: 0 0 18px rgba(200,181,138,.12);
+}
+
+.button.danger {
+  color: var(--wine);
+}
+
+.button.small {
+  min-height: 36px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 650px;
+}
+
+th {
+  text-align: left;
+  padding: 14px 17px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .65px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+td {
+  padding: 15px 17px;
+  border-bottom: 1px solid #ECE8E0;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+tbody tr {
+  transition: .15s ease;
+}
+
+tbody tr:hover {
+  background: #FCFAF5;
+}
+
+.client-name {
+  font-weight: 650;
+}
+
+.client-secondary {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.badge.active {
+  color: var(--green);
+  background: rgba(113,128,107,.10);
+}
+
+.badge.cancelled {
+  color: var(--wine);
+  background: rgba(134,93,93,.10);
+}
+
+.badge.planned {
+  color: var(--amber);
+  background: rgba(164,139,89,.11);
+}
+
+.badge.completed {
+  color: var(--green);
+  background: rgba(113,128,107,.10);
+}
+
+.empty {
+  text-align: center;
+  padding: 50px 20px;
+  color: var(--muted);
+}
+
+.empty-icon {
+  font-size: 30px;
+  opacity: .55;
+  margin-bottom: 10px;
+}
+
+.form-card {
+  max-width: 820px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 15px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field.full {
+  grid-column: 1 / -1;
+}
+
+.field label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: #fffefa;
+  color: var(--text);
+  border-radius: 10px;
+  min-height: 44px;
+  padding: 9px 12px;
+}
+
+.field textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.form-actions {
+  display: flex;
+  gap: 9px;
+  justify-content: flex-end;
+  margin-top: 19px;
+  padding-top: 17px;
+  border-top: 1px solid var(--border);
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 18px;
+}
+
+.back {
+  width: 39px;
+  height: 39px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.detail-title {
+  font-size: 22px;
+  font-weight: 720;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0,1.15fr) minmax(300px,.85fr);
+  gap: 18px;
+}
+
+.info-list {
+  display: grid;
+  gap: 0;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 13px 0;
+  border-bottom: 1px solid #ECE8E0;
+}
+
+.info-row:last-child {
+  border-bottom: 0;
+}
+
+.info-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.info-value {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 15px;
+}
+
+.period-box {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.period-box .field {
+  flex: 1;
+  min-width: 150px;
+}
+
+.amount {
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.amount.accent {
+  color: #9D8450;
+}
+
+.notice {
+  border: 1px solid #D8CBAE;
+  background: rgba(232,222,200,.34);
+  color: #66583C;
+  border-radius: 11px;
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 15px;
+}
+
+.error {
+  border: 1px solid #D7BDBD;
+  background: #FAF1F1;
+  color: var(--wine);
+  border-radius: 11px;
+  padding: 12px 14px;
+  font-size: 13px;
+  margin-bottom: 15px;
+}
+
+.success {
+  border: 1px solid #CBD5C6;
+  background: #F2F6F0;
+  color: #5E6D59;
+  border-radius: 11px;
+  padding: 12px 14px;
+  font-size: 13px;
+  margin-bottom: 15px;
+}
+
+.loading {
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 25px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(200,181,138,.13), transparent 36%),
+    var(--milk);
+}
+
+.login-card {
+  width: min(430px,100%);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 31px;
+  box-shadow: 0 18px 55px rgba(36,35,33,.10);
+}
+
+.login-brand {
+  text-align: center;
+  margin-bottom: 26px;
+}
+
+.login-brand .brand-mark {
+  margin: 0 auto 12px;
+  background: var(--graphite);
+}
+
+.login-brand h1 {
+  margin: 0;
+  font-size: 23px;
+  letter-spacing: 1.8px;
+}
+
+.login-brand p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.login-actions {
+  margin-top: 18px;
+}
+
+.login-actions .button {
+  width: 100%;
+}
+
+.login-footer {
+  text-align: center;
+  margin-top: 17px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.mobile-header {
+  display: none;
+}
+
+.bottom-nav {
+  display: none;
+}
+
+.mobile-more {
+  display: none;
+}
+
+.desktop-only {
+  display: block;
+}
+
+.mobile-only {
+  display: none;
+}
+
+.currency {
+  white-space: nowrap;
+}
+
+@media (max-width: 1050px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 800px) {
+  .sidebar {
+    display: none;
+  }
+
+  .main {
+    margin-left: 0;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    display: none;
+  }
+
+  .mobile-header {
+    display: flex;
+    position: sticky;
+    top: 0;
+    z-index: 25;
+    height: 62px;
+    padding: 0 16px;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(247,245,240,.94);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+  }
+
+  .mobile-logo {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .mobile-logo .brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    font-size: 14px;
+  }
+
+  .mobile-logo span {
+    font-size: 14px;
+    font-weight: 750;
+    letter-spacing: 1px;
+  }
+
+  .mobile-page-title {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .content {
+    padding: 22px 15px 30px;
+  }
+
+  .page-head {
+    align-items: flex-start;
+    margin-bottom: 18px;
+  }
+
+  .page-title {
+    font-size: 24px;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 10px;
+  }
+
+  .stat-card {
+    min-height: 105px;
+    padding: 15px;
+  }
+
+  .stat-value {
+    font-size: 22px;
+    margin-top: 9px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  .bottom-nav {
+    position: fixed;
+    display: grid;
+    grid-template-columns: repeat(4,1fr);
+    z-index: 50;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
+    background: rgba(36,35,33,.97);
+    border-top: 1px solid rgba(232,222,200,.12);
+    box-shadow: 0 -8px 25px rgba(36,35,33,.12);
+  }
+
+  .bottom-nav button {
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: rgba(255,255,255,.54);
+    padding: 7px 3px;
+    cursor: pointer;
+    border-radius: 10px;
+  }
+
+  .bottom-nav button.active {
+    color: var(--champagne-light);
+    background: rgba(200,181,138,.10);
+  }
+
+  .bottom-icon {
+    display: block;
+    font-size: 17px;
+    line-height: 19px;
+  }
+
+  .bottom-label {
+    display: block;
+    margin-top: 3px;
+    font-size: 9px;
+  }
+
+  .mobile-more {
+    display: none;
+    position: fixed;
+    z-index: 60;
+    left: 10px;
+    right: 10px;
+    bottom: calc(70px + env(safe-area-inset-bottom));
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 14px 40px rgba(36,35,33,.18);
+    padding: 8px;
+  }
+
+  .mobile-more.open {
+    display: block;
+  }
+
+  .mobile-more button {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    padding: 13px;
+    border-radius: 9px;
+    color: var(--text);
+  }
+
+  .mobile-more button:hover {
+    background: var(--milk);
+  }
+
+  .desktop-only {
+    display: none;
+  }
+
+  .mobile-only {
+    display: block;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .field.full {
+    grid-column: auto;
+  }
+
+  .form-actions {
+    justify-content: stretch;
+  }
+
+  .form-actions .button {
+    flex: 1;
+  }
+
+  .toolbar {
+    align-items: stretch;
+  }
+
+  .search {
+    flex-basis: 100%;
+    min-width: 100%;
+  }
+
+  .toolbar .button {
+    flex: 1;
+  }
+
+  .card-pad {
+    padding: 16px;
+  }
+
+  .detail-title {
+    font-size: 19px;
+  }
+}
+
+@media (max-width: 460px) {
+  .stats {
+    gap: 8px;
+  }
+
+  .stat-card {
+    min-height: 96px;
+    padding: 13px;
+  }
+
+  .stat-value {
+    font-size: 19px;
+  }
+
+  .content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .login-page {
+    padding: 15px;
+  }
+
+  .login-card {
+    padding: 24px 18px;
+    border-radius: 18px;
+  }
+
+  .period-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .period-box .button {
+    grid-column: 1 / -1;
+  }
+}
+`;
+
+const NAV_ITEMS = [
+  { id: "dashboard", label: "Обзор", icon: "⌂" },
+  { id: "clients", label: "Клиенты", icon: "♙" },
+  { id: "operations", label: "Операции", icon: "↗" },
+  { id: "payable", label: "К оплате", icon: "₽" },
+  { id: "history", label: "История", icon: "◷" }
+];
+
+function formatMoney(value) {
+  const number = Number(value || 0);
+  return new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(number) + " ₽";
+}
+
+function formatDate(value) {
   if (!value) return "—";
-  const [y, m, d] = value.split("-");
-  return `${d}.${m}.${y}`;
-};
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat("ru-RU").format(d);
+}
 
-const today = () => new Date().toISOString().slice(0, 10);
+function todayString() {
+  return new Date().toISOString().slice(0, 10);
+}
 
-const monthStart = () => {
+function firstDayOfMonth() {
   const d = new Date();
   d.setDate(1);
   return d.toISOString().slice(0, 10);
-};
-
-const tariffLabels = {
-  small: "Малый",
-  medium: "Средний",
-  large: "Большой",
-  storage: "Хранение",
-};
-
-function App() {
-  const [session, setSession] = useState(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
-
-  const [page, setPage] = useState("home");
-  const [mobileMore, setMobileMore] = useState(false);
-
-  const [clients, setClients] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [tariffs, setTariffs] = useState([]);
-  const [systemTariffs, setSystemTariffs] = useState([]);
-  const [shipments, setShipments] = useState([]);
-  const [storageRecords, setStorageRecords] = useState([]);
-  const [auditLog, setAuditLog] = useState([]);
-
-  const [loadingData, setLoadingData] = useState(false);
-
-  const [selectedClient, setSelectedClient] = useState(null);
-  const [search, setSearch] = useState("");
-
-  const [showClientForm, setShowClientForm] = useState(false);
-  const [editingClient, setEditingClient] = useState(null);
-
-  const [showProductForm, setShowProductForm] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
-
-  const [showTariffForm, setShowTariffForm] = useState(false);
-
-  const [showOperationForm, setShowOperationForm] = useState(false);
-
-  const [clientForm, setClientForm] = useState({
-    name: "",
-    contact_name: "",
-    phone: "",
-    email: "",
-    legal_name: "",
-    inn: "",
-    notes: "",
-  });
-
-  const [productForm, setProductForm] = useState({
-    client_id: "",
-    sku: "",
-    name: "",
-    size_type: "medium",
-    length_cm: "",
-    width_cm: "",
-    height_cm: "",
-    weight_kg: "",
-    notes: "",
-  });
-
-  const [tariffForm, setTariffForm] = useState({
-    client_id: "",
-    product_id: "",
-    tariff_type: "small",
-    price_rub: "",
-    effective_from: today(),
-    notes: "",
-  });
-
-  const [operationForm, setOperationForm] = useState({
-    client_id: "",
-    product_id: "",
-    shipment_date: today(),
-    quantity: 1,
-    tariff_type: "small",
-    note: "",
-    operation_type: "shipment",
-  });
-
-  const [periodFrom, setPeriodFrom] = useState(monthStart());
-  const [periodTo, setPeriodTo] = useState(today());
-
-  const [notice, setNotice] = useState("");
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoadingAuth(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      setSession(currentSession);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!session) return;
-    loadAll();
-  }, [session]);
-
-  const showNotice = (message) => {
-    setNotice(message);
-    setTimeout(() => setNotice(""), 3000);
-  };
-
-  async function loadAll() {
-    setLoadingData(true);
-
-    const [
-      clientsRes,
-      productsRes,
-      tariffsRes,
-      systemTariffsRes,
-      shipmentsRes,
-      storageRes,
-      auditRes,
-    ] = await Promise.all([
-      supabase.from("clients").select("*").order("name"),
-      supabase
-        .from("products")
-        .select("*, clients(name)")
-        .order("name"),
-      supabase
-        .from("tariffs")
-        .select("*, clients(name), products(name, sku)")
-        .order("effective_from", { ascending: false }),
-      supabase.from("system_tariffs").select("*").order("tariff_type"),
-      supabase
-        .from("shipments")
-        .select("*, clients(name), products(name, sku)")
-        .order("shipment_date", { ascending: false }),
-      supabase
-        .from("storage_records")
-        .select("*, clients(name)")
-        .order("start_date", { ascending: false }),
-      supabase
-        .from("audit_log")
-        .select("*")
-        .order("changed_at", { ascending: false })
-        .limit(100),
-    ]);
-
-    if (!clientsRes.error) setClients(clientsRes.data || []);
-    if (!productsRes.error) setProducts(productsRes.data || []);
-    if (!tariffsRes.error) setTariffs(tariffsRes.data || []);
-    if (!systemTariffsRes.error)
-      setSystemTariffs(systemTariffsRes.data || []);
-    if (!shipmentsRes.error) setShipments(shipmentsRes.data || []);
-    if (!storageRes.error) setStorageRecords(storageRes.data || []);
-    if (!auditRes.error) setAuditLog(auditRes.data || []);
-
-    setLoadingData(false);
-  }
-
-  async function logout() {
-    await supabase.auth.signOut();
-  }
-
-  function navigate(nextPage) {
-    setPage(nextPage);
-    setMobileMore(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function openNewClient() {
-    setEditingClient(null);
-    setClientForm({
-      name: "",
-      contact_name: "",
-      phone: "",
-      email: "",
-      legal_name: "",
-      inn: "",
-      notes: "",
-    });
-    setShowClientForm(true);
-  }
-
-  function openEditClient(client) {
-    setEditingClient(client);
-    setClientForm({
-      name: client.name || "",
-      contact_name: client.contact_name || "",
-      phone: client.phone || "",
-      email: client.email || "",
-      legal_name: client.legal_name || "",
-      inn: client.inn || "",
-      notes: client.notes || "",
-    });
-    setShowClientForm(true);
-  }
-
-  async function saveClient() {
-    if (!clientForm.name.trim()) {
-      showNotice("Укажите название клиента");
-      return;
-    }
-
-    let result;
-
-    if (editingClient) {
-      result = await supabase
-        .from("clients")
-        .update(clientForm)
-        .eq("id", editingClient.id);
-    } else {
-      result = await supabase.from("clients").insert(clientForm);
-    }
-
-    if (result.error) {
-      showNotice(result.error.message);
-      return;
-    }
-
-    setShowClientForm(false);
-    setSelectedClient(null);
-    await loadAll();
-    showNotice(editingClient ? "Клиент сохранён" : "Клиент добавлен");
-  }
-
-  function openNewProduct() {
-    setEditingProduct(null);
-    setProductForm({
-      client_id: clients[0]?.id || "",
-      sku: "",
-      name: "",
-      size_type: "medium",
-      length_cm: "",
-      width_cm: "",
-      height_cm: "",
-      weight_kg: "",
-      notes: "",
-    });
-    setShowProductForm(true);
-  }
-
-  function openEditProduct(product) {
-    setEditingProduct(product);
-    setProductForm({
-      client_id: product.client_id || "",
-      sku: product.sku || "",
-      name: product.name || "",
-      size_type: product.size_type || "medium",
-      length_cm: product.length_cm || "",
-      width_cm: product.width_cm || "",
-      height_cm: product.height_cm || "",
-      weight_kg: product.weight_kg || "",
-      notes: product.notes || "",
-    });
-    setShowProductForm(true);
-  }
-
-  async function saveProduct() {
-    if (!productForm.client_id || !productForm.sku || !productForm.name) {
-      showNotice("Заполните клиента, SKU и название");
-      return;
-    }
-
-    const payload = {
-      ...productForm,
-      length_cm: productForm.length_cm
-        ? Number(productForm.length_cm)
-        : null,
-      width_cm: productForm.width_cm
-        ? Number(productForm.width_cm)
-        : null,
-      height_cm: productForm.height_cm
-        ? Number(productForm.height_cm)
-        : null,
-      weight_kg: productForm.weight_kg
-        ? Number(productForm.weight_kg)
-        : null,
-    };
-
-    let result;
-
-    if (editingProduct) {
-      result = await supabase
-        .from("products")
-        .update(payload)
-        .eq("id", editingProduct.id);
-    } else {
-      result = await supabase.from("products").insert(payload);
-    }
-
-    if (result.error) {
-      showNotice(result.error.message);
-      return;
-    }
-
-    setShowProductForm(false);
-    await loadAll();
-    showNotice(editingProduct ? "Номенклатура сохранена" : "Номенклатура добавлена");
-  }
-
-  async function saveTariff() {
-    if (!tariffForm.client_id || !tariffForm.price_rub) {
-      showNotice("Заполните клиента и стоимость");
-      return;
-    }
-
-    if (
-      tariffForm.tariff_type !== "storage" &&
-      !tariffForm.product_id &&
-      tariffForm.product_id !== ""
-    ) {
-      // client-level tariff is allowed
-    }
-
-    const payload = {
-      client_id: tariffForm.client_id,
-      product_id:
-        tariffForm.tariff_type === "storage"
-          ? null
-          : tariffForm.product_id || null,
-      tariff_type: tariffForm.tariff_type,
-      price_rub: Number(tariffForm.price_rub),
-      effective_from: tariffForm.effective_from,
-      notes: tariffForm.notes || null,
-    };
-
-    const result = await supabase.from("tariffs").insert(payload);
-
-    if (result.error) {
-      showNotice(result.error.message);
-      return;
-    }
-
-    setShowTariffForm(false);
-    await loadAll();
-    showNotice("Тариф добавлен");
-  }
-
-  async function addOperation() {
-    if (!operationForm.client_id) {
-      showNotice("Выберите клиента");
-      return;
-    }
-
-    if (
-      operationForm.operation_type === "shipment" &&
-      Number(operationForm.quantity) <= 0
-    ) {
-      showNotice("Количество должно быть больше 0");
-      return;
-    }
-
-    if (operationForm.operation_type === "shipment") {
-      const tariff = await getEffectiveShipmentTariff(
-        operationForm.client_id,
-        operationForm.product_id || null,
-        operationForm.tariff_type,
-        operationForm.shipment_date
-      );
-
-      if (tariff === null) {
-        showNotice("Не найден тариф для операции");
-        return;
-      }
-
-      const payload = {
-        client_id: operationForm.client_id,
-        product_id: operationForm.product_id || null,
-        shipment_date: operationForm.shipment_date,
-        quantity: Number(operationForm.quantity),
-        tariff_type: operationForm.tariff_type,
-        unit_price_rub: Number(tariff),
-        total_rub: Number(tariff) * Number(operationForm.quantity),
-        status: "active",
-        note: operationForm.note || null,
-        created_by: session.user.id,
-      };
-
-      const result = await supabase.from("shipments").insert(payload);
-
-      if (result.error) {
-        showNotice(result.error.message);
-        return;
-      }
-
-      setShowOperationForm(false);
-      await loadAll();
-      showNotice("Операция добавлена");
-      return;
-    }
-
-    showNotice(
-      "Для хранения используйте раздел операций хранения после добавления соответствующей записи."
-    );
-  }
-
-  async function getEffectiveShipmentTariff(
-    clientId,
-    productId,
-    tariffType,
-    operationDate
-  ) {
-    const { data, error } = await supabase.rpc(
-      "get_effective_shipment_tariff",
-      {
-        p_client_id: clientId,
-        p_product_id: productId || null,
-        p_tariff_type: tariffType,
-        p_date: operationDate,
-      }
-    );
-
-    if (error) {
-      console.error(error);
-      return null;
-    }
-
-    return data;
-  }
-
-  async function cancelShipment(id) {
-    const result = await supabase.rpc("cancel_shipment", {
-      p_shipment_id: id,
-    });
-
-    if (result.error) {
-      showNotice(result.error.message);
-      return;
-    }
-
-    await loadAll();
-    showNotice("Операция отменена");
-  }
-
-  async function cancelStorage(id) {
-    const result = await supabase.rpc("cancel_storage", {
-      p_storage_id: id,
-    });
-
-    if (result.error) {
-      showNotice(result.error.message);
-      return;
-    }
-
-    await loadAll();
-    showNotice("Хранение отменено");
-  }
-
-  const filteredClients = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    if (!q) return clients;
-
-    return clients.filter((client) =>
-      [
-        client.name,
-        client.contact_name,
-        client.phone,
-        client.email,
-        client.inn,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [clients, search]);
-
-  const selectedClientProducts = useMemo(() => {
-    if (!tariffForm.client_id) return products;
-    return products.filter((p) => p.client_id === tariffForm.client_id);
-  }, [products, tariffForm.client_id]);
-
-  const operationProducts = useMemo(() => {
-    if (!operationForm.client_id) return products;
-    return products.filter((p) => p.client_id === operationForm.client_id);
-  }, [products, operationForm.client_id]);
-
-  const periodShipments = useMemo(() => {
-    return shipments.filter(
-      (item) =>
-        item.status === "active" &&
-        item.shipment_date >= periodFrom &&
-        item.shipment_date <= periodTo
-    );
-  }, [shipments, periodFrom, periodTo]);
-
-  const periodStorage = useMemo(() => {
-    return storageRecords.filter((item) => {
-      const active =
-        item.status !== "cancelled" &&
-        item.start_date <= periodTo &&
-        (!item.end_date || item.end_date >= periodFrom);
-
-      return active;
-    });
-  }, [storageRecords, periodFrom, periodTo]);
-
-  const payableTotal = useMemo(() => {
-    const shipmentsTotal = periodShipments.reduce(
-      (sum, item) => sum + Number(item.total_rub || 0),
-      0
-    );
-
-    const storageTotal = periodStorage.reduce(
-      (sum, item) => sum + Number(item.total_rub || 0),
-      0
-    );
-
-    return shipmentsTotal + storageTotal;
-  }, [periodShipments, periodStorage]);
-
-  const activeOperations = shipments.filter(
-    (item) => item.status === "active"
-  );
-
-  const dashboardTotal = activeOperations.reduce(
-    (sum, item) => sum + Number(item.total_rub || 0),
-    0
-  );
-
-  const dashboardQuantity = activeOperations.reduce(
-    (sum, item) => sum + Number(item.quantity || 0),
-    0
-  );
-
-  if (loadingAuth) {
-    return <LoadingScreen />;
-  }
-
-  if (!session) {
-    return <LoginScreen />;
-  }
-
-  return (
-    <div className="app-shell">
-      <Sidebar
-        page={page}
-        navigate={navigate}
-        logout={logout}
-      />
-
-      <div className="app-main">
-        <MobileTopBar
-          page={page}
-          onMenu={() => setMobileMore((v) => !v)}
-          mobileMore={mobileMore}
-          navigate={navigate}
-        />
-
-        {mobileMore && (
-          <MobileMoreMenu
-            navigate={navigate}
-            logout={logout}
-          />
-        )}
-
-        <main className="content">
-          {loadingData && (
-            <div className="loading-strip">Обновление данных…</div>
-          )}
-
-          {notice && <div className="notice">{notice}</div>}
-
-          {page === "home" && (
-            <HomePage
-              clients={clients}
-              dashboardTotal={dashboardTotal}
-              dashboardQuantity={dashboardQuantity}
-              activeOperations={activeOperations}
-              navigate={navigate}
-            />
-          )}
-
-          {page === "clients" && (
-            <ClientsPage
-              clients={filteredClients}
-              search={search}
-              setSearch={setSearch}
-              selectedClient={selectedClient}
-              setSelectedClient={setSelectedClient}
-              openNewClient={openNewClient}
-              openEditClient={openEditClient}
-              products={products}
-              shipments={shipments}
-              onNewProduct={openNewProduct}
-              onEditProduct={openEditProduct}
-            />
-          )}
-
-          {page === "products" && (
-            <ProductsPage
-              products={products}
-              clients={clients}
-              openNewProduct={openNewProduct}
-              openEditProduct={openEditProduct}
-            />
-          )}
-
-          {page === "tariffs" && (
-            <TariffsPage
-              tariffs={tariffs}
-              systemTariffs={systemTariffs}
-              clients={clients}
-              products={products}
-              showTariffForm={showTariffForm}
-              setShowTariffForm={setShowTariffForm}
-              tariffForm={tariffForm}
-              setTariffForm={setTariffForm}
-              selectedClientProducts={selectedClientProducts}
-              saveTariff={saveTariff}
-            />
-          )}
-
-          {page === "operations" && (
-            <OperationsPage
-              shipments={shipments}
-              storageRecords={storageRecords}
-              clients={clients}
-              openOperation={() => {
-                setOperationForm({
-                  client_id: clients[0]?.id || "",
-                  product_id: "",
-                  shipment_date: today(),
-                  quantity: 1,
-                  tariff_type: "small",
-                  note: "",
-                  operation_type: "shipment",
-                });
-                setShowOperationForm(true);
-              }}
-              cancelShipment={cancelShipment}
-              cancelStorage={cancelStorage}
-            />
-          )}
-
-          {page === "payable" && (
-            <PayablePage
-              periodFrom={periodFrom}
-              setPeriodFrom={setPeriodFrom}
-              periodTo={periodTo}
-              setPeriodTo={setPeriodTo}
-              periodShipments={periodShipments}
-              periodStorage={periodStorage}
-              payableTotal={payableTotal}
-              clients={clients}
-            />
-          )}
-
-          {page === "history" && (
-            <HistoryPage
-              shipments={shipments}
-              storageRecords={storageRecords}
-              auditLog={auditLog}
-            />
-          )}
-        </main>
-
-        <MobileBottomNav
-          page={page}
-          navigate={navigate}
-          onMore={() => setMobileMore((v) => !v)}
-          moreOpen={mobileMore}
-        />
-      </div>
-
-      {showClientForm && (
-        <Modal
-          title={editingClient ? "Редактирование клиента" : "Новый клиент"}
-          onClose={() => setShowClientForm(false)}
-        >
-          <FormField
-            label="Название клиента *"
-            value={clientForm.name}
-            onChange={(v) =>
-              setClientForm({ ...clientForm, name: v })
-            }
-          />
-
-          <FormField
-            label="Контактное лицо"
-            value={clientForm.contact_name}
-            onChange={(v) =>
-              setClientForm({ ...clientForm, contact_name: v })
-            }
-          />
-
-          <div className="form-grid">
-            <FormField
-              label="Телефон"
-              value={clientForm.phone}
-              onChange={(v) =>
-                setClientForm({ ...clientForm, phone: v })
-              }
-            />
-
-            <FormField
-              label="Email"
-              value={clientForm.email}
-              onChange={(v) =>
-                setClientForm({ ...clientForm, email: v })
-              }
-            />
-          </div>
-
-          <div className="form-grid">
-            <FormField
-              label="Юридическое название"
-              value={clientForm.legal_name}
-              onChange={(v) =>
-                setClientForm({ ...clientForm, legal_name: v })
-              }
-            />
-
-            <FormField
-              label="ИНН"
-              value={clientForm.inn}
-              onChange={(v) =>
-                setClientForm({ ...clientForm, inn: v })
-              }
-            />
-          </div>
-
-          <FormField
-            label="Заметки"
-            value={clientForm.notes}
-            onChange={(v) =>
-              setClientForm({ ...clientForm, notes: v })
-            }
-            textarea
-          />
-
-          <ModalActions
-            onCancel={() => setShowClientForm(false)}
-            onSave={saveClient}
-          />
-        </Modal>
-      )}
-
-      {showProductForm && (
-        <Modal
-          title={
-            editingProduct
-              ? "Редактирование номенклатуры"
-              : "Новая номенклатура"
-          }
-          onClose={() => setShowProductForm(false)}
-        >
-          <SelectField
-            label="Клиент *"
-            value={productForm.client_id}
-            onChange={(v) =>
-              setProductForm({ ...productForm, client_id: v })
-            }
-            options={clients.map((c) => ({
-              value: c.id,
-              label: c.name,
-            }))}
-          />
-
-          <div className="form-grid">
-            <FormField
-              label="SKU *"
-              value={productForm.sku}
-              onChange={(v) =>
-                setProductForm({ ...productForm, sku: v })
-              }
-            />
-
-            <FormField
-              label="Название *"
-              value={productForm.name}
-              onChange={(v) =>
-                setProductForm({ ...productForm, name: v })
-              }
-            />
-          </div>
-
-          <SelectField
-            label="Категория размера"
-            value={productForm.size_type}
-            onChange={(v) =>
-              setProductForm({ ...productForm, size_type: v })
-            }
-            options={[
-              { value: "small", label: "Малый" },
-              { value: "medium", label: "Средний" },
-              { value: "large", label: "Большой" },
-            ]}
-          />
-
-          <div className="form-grid-4">
-            <FormField
-              label="Длина, см"
-              value={productForm.length_cm}
-              onChange={(v) =>
-                setProductForm({ ...productForm, length_cm: v })
-              }
-              type="number"
-            />
-
-            <FormField
-              label="Ширина, см"
-              value={productForm.width_cm}
-              onChange={(v) =>
-                setProductForm({ ...productForm, width_cm: v })
-              }
-              type="number"
-            />
-
-            <FormField
-              label="Высота, см"
-              value={productForm.height_cm}
-              onChange={(v) =>
-                setProductForm({ ...productForm, height_cm: v })
-              }
-              type="number"
-            />
-
-            <FormField
-              label="Вес, кг"
-              value={productForm.weight_kg}
-              onChange={(v) =>
-                setProductForm({ ...productForm, weight_kg: v })
-              }
-              type="number"
-            />
-          </div>
-
-          <FormField
-            label="Заметки"
-            value={productForm.notes}
-            onChange={(v) =>
-              setProductForm({ ...productForm, notes: v })
-            }
-            textarea
-          />
-
-          <ModalActions
-            onCancel={() => setShowProductForm(false)}
-            onSave={saveProduct}
-          />
-        </Modal>
-      )}
-
-      {showOperationForm && (
-        <Modal
-          title="Новая операция"
-          onClose={() => setShowOperationForm(false)}
-        >
-          <SelectField
-            label="Тип операции"
-            value={operationForm.operation_type}
-            onChange={(v) =>
-              setOperationForm({
-                ...operationForm,
-                operation_type: v,
-              })
-            }
-            options={[
-              { value: "shipment", label: "Услуга / операция" },
-            ]}
-          />
-
-          <SelectField
-            label="Клиент *"
-            value={operationForm.client_id}
-            onChange={(v) =>
-              setOperationForm({
-                ...operationForm,
-                client_id: v,
-                product_id: "",
-              })
-            }
-            options={clients.map((c) => ({
-              value: c.id,
-              label: c.name,
-            }))}
-          />
-
-          <SelectField
-            label="Номенклатура"
-            value={operationForm.product_id}
-            onChange={(v) =>
-              setOperationForm({
-                ...operationForm,
-                product_id: v,
-              })
-            }
-            options={[
-              { value: "", label: "Без номенклатуры" },
-              ...operationProducts.map((p) => ({
-                value: p.id,
-                label: `${p.sku} — ${p.name}`,
-              })),
-            ]}
-          />
-
-          <div className="form-grid">
-            <FormField
-              label="Дата"
-              type="date"
-              value={operationForm.shipment_date}
-              onChange={(v) =>
-                setOperationForm({
-                  ...operationForm,
-                  shipment_date: v,
-                })
-              }
-            />
-
-            <FormField
-              label="Количество"
-              type="number"
-              value={operationForm.quantity}
-              onChange={(v) =>
-                setOperationForm({
-                  ...operationForm,
-                  quantity: v,
-                })
-              }
-            />
-          </div>
-
-          <SelectField
-            label="Тариф"
-            value={operationForm.tariff_type}
-            onChange={(v) =>
-              setOperationForm({
-                ...operationForm,
-                tariff_type: v,
-              })
-            }
-            options={[
-              { value: "small", label: "Малый" },
-              { value: "medium", label: "Средний" },
-              { value: "large", label: "Большой" },
-            ]}
-          />
-
-          <FormField
-            label="Комментарий"
-            value={operationForm.note}
-            onChange={(v) =>
-              setOperationForm({
-                ...operationForm,
-                note: v,
-              })
-            }
-            textarea
-          />
-
-          <ModalActions
-            onCancel={() => setShowOperationForm(false)}
-            onSave={addOperation}
-            saveText="Добавить операцию"
-          />
-        </Modal>
-      )}
-    </div>
-  );
 }
 
-function LoginScreen() {
+function getTariffLabel(type) {
+  const map = {
+    small: "Малый",
+    medium: "Средний",
+    large: "Большой",
+    storage: "Хранение"
+  };
+  return map[type] || type || "—";
+}
+
+function getStatusLabel(status) {
+  const map = {
+    active: "Активна",
+    cancelled: "Отменена",
+    planned: "Запланировано",
+    completed: "Завершено"
+  };
+  return map[status] || status || "—";
+}
+
+function AppStyles() {
+  return <style>{APP_CSS}</style>;
+}
+
+function Login({ onLoggedIn }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   async function login(e) {
     e.preventDefault();
-    setError("");
     setLoading(true);
+    setError("");
 
-    const { error: loginError } =
+    const { data, error: loginError } =
       await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: email.trim(),
+        password
       });
 
-    if (loginError) setError(loginError.message);
+    if (loginError) {
+      setError(loginError.message);
+    } else {
+      onLoggedIn(data.session);
+    }
 
     setLoading(false);
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="brand-mark">S</div>
+    <>
+      <AppStyles />
+      <div className="login-page">
+        <div className="login-card">
+          <div className="login-brand">
+            <div className="brand-mark">S</div>
+            <h1>SORTEX</h1>
+            <p>Операционный кабинет</p>
+          </div>
 
-        <div className="login-brand">SORTEX</div>
-        <div className="login-subtitle">WMS · OPERATIONS</div>
+          {error && <div className="error">{error}</div>}
 
-        <h1>Вход в систему</h1>
+          <form onSubmit={login}>
+            <div className="field">
+              <label>Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Введите email"
+                required
+                autoComplete="email"
+              />
+            </div>
 
-        <form onSubmit={login}>
-          <FormField
-            label="Email"
-            value={email}
-            onChange={setEmail}
-            type="email"
-          />
+            <div className="field" style={{ marginTop: 14 }}>
+              <label>Пароль</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Введите пароль"
+                required
+                autoComplete="current-password"
+              />
+            </div>
 
-          <FormField
-            label="Пароль"
-            value={password}
-            onChange={setPassword}
-            type="password"
-          />
+            <div className="login-actions">
+              <button
+                className="button primary"
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? "Вход..." : "Войти"}
+              </button>
+            </div>
+          </form>
 
-          {error && <div className="error-box">{error}</div>}
-
-          <button
-            className="primary-button login-button"
-            disabled={loading}
-          >
-            {loading ? "Вход…" : "Войти"}
-          </button>
-        </form>
+          <div className="login-footer">
+            SORTEX WMS · Central Operations
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-function LoadingScreen() {
-  return (
-    <div className="loading-screen">
-      <div className="loading-logo">SORTEX</div>
-      <div className="loading-text">Загрузка системы…</div>
-    </div>
-  );
-}
-
-function Sidebar({ page, navigate, logout }) {
-  const items = [
-    ["home", "⌂", "Главная"],
-    ["clients", "◉", "Клиенты"],
-    ["products", "□", "Номенклатура"],
-    ["tariffs", "◇", "Тарифы"],
-    ["operations", "↗", "Операции"],
-    ["payable", "₽", "К оплате"],
-    ["history", "◷", "История"],
-  ];
-
+function Sidebar({ activePage, setPage, user, logout }) {
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">
-        <div className="sidebar-logo">S</div>
+      <div className="brand">
+        <div className="brand-mark">S</div>
         <div>
-          <div className="sidebar-title">SORTEX</div>
-          <div className="sidebar-caption">WMS · OPERATIONS</div>
+          <div className="brand-name">SORTEX</div>
+          <div className="brand-sub">WMS Operations</div>
         </div>
       </div>
 
-      <nav className="sidebar-nav">
-        {items.map(([key, icon, label]) => (
+      <nav className="nav">
+        {NAV_ITEMS.map((item) => (
           <button
-            key={key}
-            className={`nav-item ${page === key ? "active" : ""}`}
-            onClick={() => navigate(key)}
+            key={item.id}
+            className={`nav-button ${
+              activePage === item.id ? "active" : ""
+            }`}
+            onClick={() => setPage(item.id)}
           >
-            <span className="nav-icon">{icon}</span>
-            <span>{label}</span>
+            <span className="nav-icon">{item.icon}</span>
+            <span>{item.label}</span>
           </button>
         ))}
       </nav>
 
-      <div className="sidebar-footer">
-        <div className="sidebar-status">
-          <span className="status-dot" />
-          Система подключена
-        </div>
-
+      <div className="sidebar-bottom">
+        <div className="user-mini">{user?.email}</div>
         <button className="logout-button" onClick={logout}>
           Выйти
         </button>
@@ -1109,1233 +1185,1566 @@ function Sidebar({ page, navigate, logout }) {
   );
 }
 
-function MobileTopBar({
-  page,
-  onMenu,
-  mobileMore,
-  navigate,
-}) {
-  const labels = {
-    home: "Главная",
-    clients: "Клиенты",
-    products: "Номенклатура",
-    tariffs: "Тарифы",
-    operations: "Операции",
-    payable: "К оплате",
-    history: "История",
-  };
+function MobileNavigation({ activePage, setPage }) {
+  const main = [
+    NAV_ITEMS[0],
+    NAV_ITEMS[1],
+    NAV_ITEMS[2]
+  ];
 
   return (
-    <header className="mobile-topbar">
-      <div className="mobile-brand" onClick={() => navigate("home")}>
-        <div className="mobile-logo">S</div>
-        <div>
-          <div className="mobile-brand-name">SORTEX</div>
-          <div className="mobile-page-name">{labels[page]}</div>
-        </div>
-      </div>
+    <>
+      <div className="bottom-nav">
+        {main.map((item) => (
+          <button
+            key={item.id}
+            className={activePage === item.id ? "active" : ""}
+            onClick={() => setPage(item.id)}
+          >
+            <span className="bottom-icon">{item.icon}</span>
+            <span className="bottom-label">{item.label}</span>
+          </button>
+        ))}
 
-      <button
-        className={`mobile-menu-button ${
-          mobileMore ? "selected" : ""
-        }`}
-        onClick={onMenu}
-      >
-        ☰
-      </button>
+        <button
+          className={
+            activePage === "payable" || activePage === "history"
+              ? "active"
+              : ""
+          }
+          onClick={() =>
+            setPage(
+              activePage === "payable" || activePage === "history"
+                ? "dashboard"
+                : "payable"
+            )
+          }
+        >
+          <span className="bottom-icon">•••</span>
+          <span className="bottom-label">Ещё</span>
+        </button>
+      </div>
+    </>
+  );
+}
+
+function MobileHeader({ pageTitle }) {
+  return (
+    <header className="mobile-header">
+      <div className="mobile-logo">
+        <div className="brand-mark">S</div>
+        <span>SORTEX</span>
+      </div>
+      <div className="mobile-page-title">{pageTitle}</div>
     </header>
   );
 }
 
-function MobileMoreMenu({ navigate, logout }) {
-  return (
-    <div className="mobile-more-menu">
-      <button onClick={() => navigate("products")}>
-        □ Номенклатура
-      </button>
-
-      <button onClick={() => navigate("tariffs")}>
-        ◇ Тарифы
-      </button>
-
-      <button onClick={() => navigate("history")}>
-        ◷ История
-      </button>
-
-      <button className="mobile-logout" onClick={logout}>
-        Выйти
-      </button>
-    </div>
+function Dashboard({ clients, operations, storage }) {
+  const activeOperations = operations.filter(
+    (x) => x.status === "active"
   );
-}
 
-function MobileBottomNav({
-  page,
-  navigate,
-  onMore,
-  moreOpen,
-}) {
-  const items = [
-    ["home", "⌂", "Главная"],
-    ["clients", "◉", "Клиенты"],
-    ["operations", "↗", "Операции"],
-    ["payable", "₽", "К оплате"],
-  ];
-
-  return (
-    <nav className="mobile-bottom-nav">
-      {items.map(([key, icon, label]) => (
-        <button
-          key={key}
-          className={page === key ? "active" : ""}
-          onClick={() => navigate(key)}
-        >
-          <span>{icon}</span>
-          <small>{label}</small>
-        </button>
-      ))}
-
-      <button
-        className={
-          moreOpen ||
-          ["products", "tariffs", "history"].includes(page)
-            ? "active"
-            : ""
-        }
-        onClick={onMore}
-      >
-        <span>•••</span>
-        <small>Ещё</small>
-      </button>
-    </nav>
+  const activeStorage = storage.filter(
+    (x) => x.status !== "cancelled"
   );
-}
 
-function HomePage({
-  clients,
-  dashboardTotal,
-  dashboardQuantity,
-  activeOperations,
-  navigate,
-}) {
-  const recent = activeOperations.slice(0, 5);
+  const operationsTotal = activeOperations.reduce(
+    (sum, x) => sum + Number(x.total_rub || 0),
+    0
+  );
+
+  const storageTotal = activeStorage.reduce(
+    (sum, x) => sum + Number(x.total_rub || 0),
+    0
+  );
+
+  const total = operationsTotal + storageTotal;
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="SORTEX WMS"
-        title="Главная"
-        description="Контроль клиентских операций и начислений"
-      />
-
-      <div className="stats-grid">
-        <StatCard
-          label="Клиенты"
-          value={clients.length}
-          caption="активные карточки"
-        />
-
-        <StatCard
-          label="Операции"
-          value={dashboardQuantity}
-          caption="единиц за всё время"
-        />
-
-        <StatCard
-          label="Начислено"
-          value={money(dashboardTotal)}
-          caption="активные операции"
-          money
-        />
+    <>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Обзор</h1>
+          <div className="page-subtitle">
+            Текущее состояние операционных начислений
+          </div>
+        </div>
       </div>
 
-      <section className="section-block">
-        <div className="section-heading">
-          <div>
-            <div className="section-eyebrow">БЫСТРЫЙ ДОСТУП</div>
-            <h2>Рабочие разделы</h2>
+      <div className="stats">
+        <div className="card stat-card">
+          <div className="stat-label">Клиенты</div>
+          <div className="stat-value">{clients.length}</div>
+        </div>
+
+        <div className="card stat-card">
+          <div className="stat-label">Операции</div>
+          <div className="stat-value">
+            {activeOperations.length}
           </div>
         </div>
 
-        <div className="quick-grid">
-          <QuickCard
-            title="Клиенты"
-            text="Карточки клиентов и контакты"
-            onClick={() => navigate("clients")}
-          />
-
-          <QuickCard
-            title="Операции"
-            text="Добавление и контроль начислений"
-            onClick={() => navigate("operations")}
-          />
-
-          <QuickCard
-            title="К оплате"
-            text="Сумма начислений за период"
-            onClick={() => navigate("payable")}
-          />
-
-          <QuickCard
-            title="Тарифы"
-            text="Правила расчёта стоимости"
-            onClick={() => navigate("tariffs")}
-          />
-        </div>
-      </section>
-
-      <section className="section-block">
-        <div className="section-heading">
-          <div>
-            <div className="section-eyebrow">ПОСЛЕДНИЕ</div>
-            <h2>Последние операции</h2>
+        <div className="card stat-card">
+          <div className="stat-label">Хранение</div>
+          <div className="stat-value">
+            {activeStorage.length}
           </div>
-
-          <button
-            className="secondary-button"
-            onClick={() => navigate("operations")}
-          >
-            Все операции
-          </button>
         </div>
 
-        {recent.length === 0 ? (
-          <EmptyState text="Операций пока нет" />
-        ) : (
-          <div className="data-list">
-            {recent.map((item) => (
-              <OperationCard key={item.id} item={item} />
-            ))}
+        <div className="card stat-card">
+          <div className="stat-label">Начислено</div>
+          <div className="stat-value accent">
+            {formatMoney(total)}
           </div>
-        )}
-      </section>
-    </div>
+        </div>
+      </div>
+
+      <div className="card card-pad">
+        <h2 className="section-title">Финансовая сводка</h2>
+
+        <div className="info-list">
+          <div className="info-row">
+            <span className="info-label">
+              Операционные услуги
+            </span>
+            <span className="info-value amount">
+              {formatMoney(operationsTotal)}
+            </span>
+          </div>
+
+          <div className="info-row">
+            <span className="info-label">Хранение</span>
+            <span className="info-value amount">
+              {formatMoney(storageTotal)}
+            </span>
+          </div>
+
+          <div className="info-row">
+            <span className="info-label">Всего начислено</span>
+            <span className="info-value amount accent">
+              {formatMoney(total)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
-function ClientsPage({
+function Clients({
   clients,
   search,
   setSearch,
-  selectedClient,
-  setSelectedClient,
-  openNewClient,
-  openEditClient,
-  products,
-  shipments,
-  onNewProduct,
-  onEditProduct,
+  onAdd,
+  onOpen
 }) {
-  if (selectedClient) {
-    const clientProducts = products.filter(
-      (p) => p.client_id === selectedClient.id
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    if (!q) return clients;
+
+    return clients.filter((client) =>
+      [
+        client.name,
+        client.legal_name,
+        client.inn,
+        client.contact_name,
+        client.phone,
+        client.email
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
     );
+  }, [clients, search]);
 
-    const clientOperations = shipments.filter(
-      (s) => s.client_id === selectedClient.id
-    );
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Клиенты</h1>
+          <div className="page-subtitle">
+            Клиенты и связанные операционные начисления
+          </div>
+        </div>
+      </div>
 
-    const clientTotal = clientOperations
-      .filter((s) => s.status === "active")
-      .reduce((sum, s) => sum + Number(s.total_rub || 0), 0);
-
-    return (
-      <div>
-        <button
-          className="back-button"
-          onClick={() => setSelectedClient(null)}
-        >
-          ← Все клиенты
-        </button>
-
-        <PageHeader
-          eyebrow="КЛИЕНТ"
-          title={selectedClient.name}
-          description={
-            selectedClient.contact_name ||
-            selectedClient.phone ||
-            "Карточка клиента"
-          }
-          action={
-            <button
-              className="primary-button"
-              onClick={() => openEditClient(selectedClient)}
-            >
-              Редактировать
-            </button>
-          }
-        />
-
-        <div className="client-summary-grid">
-          <InfoCard
-            label="Контакт"
-            value={selectedClient.contact_name || "—"}
-          />
-          <InfoCard
-            label="Телефон"
-            value={selectedClient.phone || "—"}
-          />
-          <InfoCard
-            label="Email"
-            value={selectedClient.email || "—"}
-          />
-          <InfoCard
-            label="Активные начисления"
-            value={money(clientTotal)}
+      <div className="toolbar">
+        <div className="search">
+          <span className="search-symbol">⌕</span>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск клиента..."
           />
         </div>
 
-        <section className="section-block">
-          <div className="section-heading">
-            <div>
-              <div className="section-eyebrow">НОМЕНКЛАТУРА</div>
-              <h2>Товары клиента</h2>
+        <button className="button primary" onClick={onAdd}>
+          + Добавить клиента
+        </button>
+      </div>
+
+      <div className="card">
+        {filtered.length === 0 ? (
+          <div className="empty">
+            <div className="empty-icon">♙</div>
+            <div>Клиенты не найдены</div>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Клиент</th>
+                  <th>Контакт</th>
+                  <th>Телефон</th>
+                  <th>Статус</th>
+                  <th></th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filtered.map((client) => (
+                  <tr key={client.id}>
+                    <td>
+                      <div className="client-name">
+                        {client.name}
+                      </div>
+
+                      {client.legal_name &&
+                        client.legal_name !== client.name && (
+                          <div className="client-secondary">
+                            {client.legal_name}
+                          </div>
+                        )}
+                    </td>
+
+                    <td>{client.contact_name || "—"}</td>
+                    <td>{client.phone || "—"}</td>
+
+                    <td>
+                      <span
+                        className={`badge ${
+                          client.is_active
+                            ? "active"
+                            : "cancelled"
+                        }`}
+                      >
+                        {client.is_active
+                          ? "Активен"
+                          : "Неактивен"}
+                      </span>
+                    </td>
+
+                    <td>
+                      <button
+                        className="button small"
+                        onClick={() => onOpen(client)}
+                      >
+                        Открыть
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function ClientForm({ initial, onCancel, onSaved }) {
+  const [form, setForm] = useState({
+    name: initial?.name || "",
+    legal_name: initial?.legal_name || "",
+    inn: initial?.inn || "",
+    contact_name: initial?.contact_name || "",
+    phone: initial?.phone || "",
+    email: initial?.email || "",
+    notes: initial?.notes || ""
+  });
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function update(field, value) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function save(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+
+    const payload = {
+      name: form.name.trim(),
+      legal_name: form.legal_name.trim() || null,
+      inn: form.inn.trim() || null,
+      contact_name: form.contact_name.trim() || null,
+      phone: form.phone.trim() || null,
+      email: form.email.trim() || null,
+      notes: form.notes.trim() || null
+    };
+
+    if (!payload.name) {
+      setError("Укажите название клиента.");
+      setSaving(false);
+      return;
+    }
+
+    let result;
+
+    if (initial) {
+      result = await supabase
+        .from("clients")
+        .update(payload)
+        .eq("id", initial.id)
+        .select()
+        .single();
+    } else {
+      result = await supabase
+        .from("clients")
+        .insert(payload)
+        .select()
+        .single();
+    }
+
+    if (result.error) {
+      setError(result.error.message);
+    } else {
+      onSaved(result.data);
+    }
+
+    setSaving(false);
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">
+            {initial ? "Редактирование клиента" : "Новый клиент"}
+          </h1>
+          <div className="page-subtitle">
+            Основная информация о клиенте
+          </div>
+        </div>
+      </div>
+
+      <div className="card card-pad form-card">
+        {error && <div className="error">{error}</div>}
+
+        <form onSubmit={save}>
+          <div className="form-grid">
+            <div className="field">
+              <label>Название *</label>
+              <input
+                value={form.name}
+                onChange={(e) => update("name", e.target.value)}
+                placeholder="Название клиента"
+                required
+              />
             </div>
 
-            <button
-              className="secondary-button"
-              onClick={onNewProduct}
-            >
-              + Добавить
-            </button>
+            <div className="field">
+              <label>Юридическое название</label>
+              <input
+                value={form.legal_name}
+                onChange={(e) =>
+                  update("legal_name", e.target.value)
+                }
+              />
+            </div>
+
+            <div className="field">
+              <label>ИНН</label>
+              <input
+                value={form.inn}
+                onChange={(e) => update("inn", e.target.value)}
+              />
+            </div>
+
+            <div className="field">
+              <label>Контактное лицо</label>
+              <input
+                value={form.contact_name}
+                onChange={(e) =>
+                  update("contact_name", e.target.value)
+                }
+              />
+            </div>
+
+            <div className="field">
+              <label>Телефон</label>
+              <input
+                value={form.phone}
+                onChange={(e) => update("phone", e.target.value)}
+              />
+            </div>
+
+            <div className="field">
+              <label>Email</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => update("email", e.target.value)}
+              />
+            </div>
+
+            <div className="field full">
+              <label>Примечание</label>
+              <textarea
+                value={form.notes}
+                onChange={(e) => update("notes", e.target.value)}
+              />
+            </div>
           </div>
 
-          {clientProducts.length === 0 ? (
-            <EmptyState text="Номенклатура пока не добавлена" />
-          ) : (
-            <div className="data-list">
-              {clientProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onEdit={() => onEditProduct(product)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+          <div className="form-actions">
+            <button
+              type="button"
+              className="button"
+              onClick={onCancel}
+            >
+              Отмена
+            </button>
+
+            <button
+              type="submit"
+              className="button primary"
+              disabled={saving}
+            >
+              {saving ? "Сохранение..." : "Сохранить"}
+            </button>
+          </div>
+        </form>
       </div>
+    </>
+  );
+}
+
+function ClientDetail({
+  client,
+  operations,
+  storage,
+  onBack,
+  onEdit,
+  reload
+}) {
+  const [showOperation, setShowOperation] = useState(false);
+
+  const clientOperations = operations.filter(
+    (x) => x.client_id === client.id
+  );
+
+  const clientStorage = storage.filter(
+    (x) => x.client_id === client.id
+  );
+
+  const total =
+    clientOperations
+      .filter((x) => x.status === "active")
+      .reduce((s, x) => s + Number(x.total_rub || 0), 0) +
+    clientStorage
+      .filter((x) => x.status !== "cancelled")
+      .reduce((s, x) => s + Number(x.total_rub || 0), 0);
+
+  if (showOperation) {
+    return (
+      <OperationForm
+        clients={[client]}
+        onCancel={() => setShowOperation(false)}
+        onSaved={() => {
+          setShowOperation(false);
+          reload();
+        }}
+      />
     );
   }
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="СПРАВОЧНИК"
-        title="Клиенты"
-        description="Клиентские карточки и контактные данные"
-        action={
-          <button className="primary-button" onClick={openNewClient}>
-            + Новый клиент
-          </button>
-        }
-      />
-
-      <div className="search-row">
-        <input
-          className="search-input"
-          placeholder="Поиск клиента…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-
-        <div className="search-count">
-          Найдено: <strong>{clients.length}</strong>
-        </div>
-      </div>
-
-      {clients.length === 0 ? (
-        <EmptyState text="Клиенты не найдены" />
-      ) : (
-        <div className="data-list">
-          {clients.map((client) => (
-            <ClientCard
-              key={client.id}
-              client={client}
-              onOpen={() => setSelectedClient(client)}
-              onEdit={() => openEditClient(client)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ProductsPage({
-  products,
-  clients,
-  openNewProduct,
-  openEditProduct,
-}) {
-  return (
-    <div>
-      <PageHeader
-        eyebrow="СПРАВОЧНИК"
-        title="Номенклатура"
-        description="SKU и параметры клиентских товаров"
-        action={
-          <button className="primary-button" onClick={openNewProduct}>
-            + Добавить
-          </button>
-        }
-      />
-
-      {products.length === 0 ? (
-        <EmptyState text="Номенклатура пока не добавлена" />
-      ) : (
-        <div className="data-list">
-          {products.map((product) => {
-            const client = clients.find(
-              (c) => c.id === product.client_id
-            );
-
-            return (
-              <ProductCard
-                key={product.id}
-                product={product}
-                clientName={client?.name}
-                onEdit={() => openEditProduct(product)}
-              />
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TariffsPage({
-  tariffs,
-  systemTariffs,
-  clients,
-  products,
-  showTariffForm,
-  setShowTariffForm,
-  tariffForm,
-  setTariffForm,
-  selectedClientProducts,
-  saveTariff,
-}) {
-  return (
-    <div>
-      <PageHeader
-        eyebrow="НАСТРОЙКИ"
-        title="Тарифы"
-        description="Стоимость операций по клиентам и системе"
-        action={
-          <button
-            className="primary-button"
-            onClick={() => setShowTariffForm(true)}
-          >
-            + Новый тариф
-          </button>
-        }
-      />
-
-      <section className="section-block">
-        <div className="section-heading">
-          <div>
-            <div className="section-eyebrow">СИСТЕМНЫЕ</div>
-            <h2>Базовые тарифы</h2>
-          </div>
-        </div>
-
-        <div className="system-tariff-grid">
-          {systemTariffs.map((item) => (
-            <div className="system-tariff-card" key={item.id}>
-              <span>{tariffLabels[item.tariff_type]}</span>
-              <strong>{money(item.price_rub)}</strong>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="section-block">
-        <div className="section-heading">
-          <div>
-            <div className="section-eyebrow">ИНДИВИДУАЛЬНЫЕ</div>
-            <h2>Тарифы клиентов</h2>
-          </div>
-        </div>
-
-        {tariffs.length === 0 ? (
-          <EmptyState text="Индивидуальных тарифов пока нет" />
-        ) : (
-          <div className="data-list">
-            {tariffs.map((tariff) => (
-              <TariffCard key={tariff.id} tariff={tariff} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {showTariffForm && (
-        <Modal
-          title="Новый тариф"
-          onClose={() => setShowTariffForm(false)}
-        >
-          <SelectField
-            label="Клиент *"
-            value={tariffForm.client_id}
-            onChange={(v) =>
-              setTariffForm({
-                ...tariffForm,
-                client_id: v,
-                product_id: "",
-              })
-            }
-            options={clients.map((c) => ({
-              value: c.id,
-              label: c.name,
-            }))}
-          />
-
-          <SelectField
-            label="Тип тарифа"
-            value={tariffForm.tariff_type}
-            onChange={(v) =>
-              setTariffForm({
-                ...tariffForm,
-                tariff_type: v,
-                product_id: "",
-              })
-            }
-            options={[
-              { value: "small", label: "Малый" },
-              { value: "medium", label: "Средний" },
-              { value: "large", label: "Большой" },
-              { value: "storage", label: "Хранение" },
-            ]}
-          />
-
-          {tariffForm.tariff_type !== "storage" && (
-            <SelectField
-              label="Номенклатура"
-              value={tariffForm.product_id}
-              onChange={(v) =>
-                setTariffForm({
-                  ...tariffForm,
-                  product_id: v,
-                })
-              }
-              options={[
-                { value: "", label: "Для всего клиента" },
-                ...selectedClientProducts.map((p) => ({
-                  value: p.id,
-                  label: `${p.sku} — ${p.name}`,
-                })),
-              ]}
-            />
-          )}
-
-          <div className="form-grid">
-            <FormField
-              label="Цена, ₽ *"
-              type="number"
-              value={tariffForm.price_rub}
-              onChange={(v) =>
-                setTariffForm({
-                  ...tariffForm,
-                  price_rub: v,
-                })
-              }
-            />
-
-            <FormField
-              label="Действует с"
-              type="date"
-              value={tariffForm.effective_from}
-              onChange={(v) =>
-                setTariffForm({
-                  ...tariffForm,
-                  effective_from: v,
-                })
-              }
-            />
-          </div>
-
-          <FormField
-            label="Заметки"
-            value={tariffForm.notes}
-            onChange={(v) =>
-              setTariffForm({
-                ...tariffForm,
-                notes: v,
-              })
-            }
-            textarea
-          />
-
-          <ModalActions
-            onCancel={() => setShowTariffForm(false)}
-            onSave={saveTariff}
-          />
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-function OperationsPage({
-  shipments,
-  storageRecords,
-  openOperation,
-  cancelShipment,
-  cancelStorage,
-}) {
-  return (
-    <div>
-      <PageHeader
-        eyebrow="ОПЕРАЦИИ"
-        title="Операции"
-        description="Начисления за выполненные услуги"
-        action={
-          <button className="primary-button" onClick={openOperation}>
-            + Новая операция
-          </button>
-        }
-      />
-
-      <div className="operation-summary">
-        <InfoCard
-          label="Активные операции"
-          value={
-            shipments.filter((s) => s.status === "active").length
-          }
-        />
-
-        <InfoCard
-          label="Отменённые"
-          value={
-            shipments.filter((s) => s.status === "cancelled").length
-          }
-        />
-
-        <InfoCard
-          label="Хранение"
-          value={storageRecords.length}
-        />
-      </div>
-
-      <section className="section-block">
-        <div className="section-heading">
-          <div>
-            <div className="section-eyebrow">НАЧИСЛЕНИЯ</div>
-            <h2>Операции</h2>
-          </div>
-        </div>
-
-        {shipments.length === 0 ? (
-          <EmptyState text="Операций пока нет" />
-        ) : (
-          <div className="data-list">
-            {shipments.map((item) => (
-              <OperationCard
-                key={item.id}
-                item={item}
-                onCancel={
-                  item.status === "active"
-                    ? () => cancelShipment(item.id)
-                    : undefined
-                }
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {storageRecords.length > 0 && (
-        <section className="section-block">
-          <div className="section-heading">
-            <div>
-              <div className="section-eyebrow">ХРАНЕНИЕ</div>
-              <h2>Хранение</h2>
-            </div>
-          </div>
-
-          <div className="data-list">
-            {storageRecords.map((item) => (
-              <StorageCard
-                key={item.id}
-                item={item}
-                onCancel={
-                  item.status !== "cancelled"
-                    ? () => cancelStorage(item.id)
-                    : undefined
-                }
-              />
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
-  );
-}
-
-function PayablePage({
-  periodFrom,
-  setPeriodFrom,
-  periodTo,
-  setPeriodTo,
-  periodShipments,
-  periodStorage,
-  payableTotal,
-}) {
-  const shipmentTotal = periodShipments.reduce(
-    (sum, item) => sum + Number(item.total_rub || 0),
-    0
-  );
-
-  const storageTotal = periodStorage.reduce(
-    (sum, item) => sum + Number(item.total_rub || 0),
-    0
-  );
-
-  return (
-    <div>
-      <PageHeader
-        eyebrow="ФИНАНСЫ"
-        title="К оплате"
-        description="Активные начисления за выбранный период"
-      />
-
-      <div className="period-panel">
-        <div>
-          <label>С</label>
-          <input
-            type="date"
-            value={periodFrom}
-            onChange={(e) => setPeriodFrom(e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label>По</label>
-          <input
-            type="date"
-            value={periodTo}
-            onChange={(e) => setPeriodTo(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="payable-hero">
-        <div>
-          <div className="section-eyebrow">ИТОГО</div>
-          <div className="payable-number">{money(payableTotal)}</div>
-          <div className="muted-text">
-            сумма активных начислений за период
-          </div>
-        </div>
-      </div>
-
-      <div className="stats-grid">
-        <StatCard
-          label="Операции"
-          value={money(shipmentTotal)}
-          caption={`${periodShipments.length} операций`}
-          money
-        />
-
-        <StatCard
-          label="Хранение"
-          value={money(storageTotal)}
-          caption={`${periodStorage.length} записей`}
-          money
-        />
-      </div>
-
-      <section className="section-block">
-        <div className="section-heading">
-          <div>
-            <div className="section-eyebrow">РАСШИФРОВКА</div>
-            <h2>Начисления</h2>
-          </div>
-        </div>
-
-        {periodShipments.length === 0 && periodStorage.length === 0 ? (
-          <EmptyState text="За выбранный период начислений нет" />
-        ) : (
-          <div className="data-list">
-            {periodShipments.map((item) => (
-              <OperationCard key={item.id} item={item} />
-            ))}
-
-            {periodStorage.map((item) => (
-              <StorageCard key={item.id} item={item} />
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function HistoryPage({
-  shipments,
-  storageRecords,
-  auditLog,
-}) {
-  const historyItems = [
-    ...shipments.map((item) => ({
-      id: item.id,
-      date: item.shipment_date,
-      type: "Операция",
-      name: item.clients?.name || "—",
-      amount: item.total_rub,
-      status: item.status,
-    })),
-    ...storageRecords.map((item) => ({
-      id: item.id,
-      date: item.start_date,
-      type: "Хранение",
-      name: item.clients?.name || "—",
-      amount: item.total_rub,
-      status: item.status,
-    })),
-  ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-
-  return (
-    <div>
-      <PageHeader
-        eyebrow="КОНТРОЛЬ"
-        title="История"
-        description="История операций и системных изменений"
-      />
-
-      <section className="section-block">
-        <div className="section-heading">
-          <div>
-            <div className="section-eyebrow">ОПЕРАЦИИ</div>
-            <h2>История начислений</h2>
-          </div>
-        </div>
-
-        {historyItems.length === 0 ? (
-          <EmptyState text="История пока пуста" />
-        ) : (
-          <div className="data-list">
-            {historyItems.map((item) => (
-              <div className="history-card" key={`${item.type}-${item.id}`}>
-                <div className="history-main">
-                  <div className="history-type">{item.type}</div>
-                  <strong>{item.name}</strong>
-                  <span>{dateRu(item.date)}</span>
-                </div>
-
-                <div className="history-side">
-                  <strong>{money(item.amount)}</strong>
-                  <StatusBadge status={item.status} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="section-block">
-        <div className="section-heading">
-          <div>
-            <div className="section-eyebrow">AUDIT</div>
-            <h2>Журнал изменений</h2>
-          </div>
-        </div>
-
-        {auditLog.length === 0 ? (
-          <EmptyState text="Записей аудита пока нет" />
-        ) : (
-          <div className="audit-list">
-            {auditLog.slice(0, 50).map((item) => (
-              <div className="audit-card" key={item.id}>
-                <div>
-                  <strong>{item.entity_type}</strong>
-                  <span>{item.action}</span>
-                </div>
-
-                <time>
-                  {item.changed_at
-                    ? new Date(item.changed_at).toLocaleString("ru-RU")
-                    : "—"}
-                </time>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function PageHeader({
-  eyebrow,
-  title,
-  description,
-  action,
-}) {
-  return (
-    <div className="page-header">
-      <div className="page-header-copy">
-        <div className="section-eyebrow">{eyebrow}</div>
-        <h1>{title}</h1>
-        {description && <p>{description}</p>}
-      </div>
-
-      {action && <div className="page-header-action">{action}</div>}
-    </div>
-  );
-}
-
-function StatCard({ label, value, caption }) {
-  return (
-    <div className="stat-card">
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">{value}</div>
-      <div className="stat-caption">{caption}</div>
-    </div>
-  );
-}
-
-function QuickCard({ title, text, onClick }) {
-  return (
-    <button className="quick-card" onClick={onClick}>
-      <div className="quick-arrow">↗</div>
-      <strong>{title}</strong>
-      <span>{text}</span>
-    </button>
-  );
-}
-
-function ClientCard({ client, onOpen, onEdit }) {
-  return (
-    <div className="data-card clickable-card" onClick={onOpen}>
-      <div className="card-main">
-        <div className="card-eyebrow">КЛИЕНТ</div>
-        <h3>{client.name}</h3>
-
-        <div className="card-details">
-          {client.contact_name && (
-            <span>{client.contact_name}</span>
-          )}
-          {client.phone && <span>{client.phone}</span>}
-          {client.email && <span>{client.email}</span>}
-        </div>
-      </div>
-
-      <div className="card-actions">
-        <button
-          className="small-button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit();
-          }}
-        >
-          Изменить
+    <>
+      <div className="detail-head">
+        <button className="back" onClick={onBack}>
+          ←
         </button>
 
-        <span className="card-arrow">→</span>
-      </div>
-    </div>
-  );
-}
-
-function ProductCard({ product, clientName, onEdit }) {
-  return (
-    <div className="data-card">
-      <div className="card-main">
-        <div className="card-eyebrow">
-          {product.sku}
+        <div>
+          <div className="detail-title">{client.name}</div>
+          <div className="page-subtitle">
+            Карточка клиента
+          </div>
         </div>
+      </div>
 
-        <h3>{product.name}</h3>
+      <div className="detail-grid">
+        <div className="card card-pad">
+          <h2 className="section-title">
+            Основная информация
+          </h2>
 
-        <div className="card-details">
-          {clientName && <span>{clientName}</span>}
-          {product.size_type && (
-            <span>{tariffLabels[product.size_type]}</span>
-          )}
-
-          {product.length_cm &&
-            product.width_cm &&
-            product.height_cm && (
-              <span>
-                {product.length_cm} × {product.width_cm} ×{" "}
-                {product.height_cm} см
+          <div className="info-list">
+            <div className="info-row">
+              <span className="info-label">Название</span>
+              <span className="info-value">
+                {client.name}
               </span>
-            )}
+            </div>
+
+            <div className="info-row">
+              <span className="info-label">
+                Юридическое название
+              </span>
+              <span className="info-value">
+                {client.legal_name || "—"}
+              </span>
+            </div>
+
+            <div className="info-row">
+              <span className="info-label">ИНН</span>
+              <span className="info-value">
+                {client.inn || "—"}
+              </span>
+            </div>
+
+            <div className="info-row">
+              <span className="info-label">Контакт</span>
+              <span className="info-value">
+                {client.contact_name || "—"}
+              </span>
+            </div>
+
+            <div className="info-row">
+              <span className="info-label">Телефон</span>
+              <span className="info-value">
+                {client.phone || "—"}
+              </span>
+            </div>
+
+            <div className="info-row">
+              <span className="info-label">Email</span>
+              <span className="info-value">
+                {client.email || "—"}
+              </span>
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button className="button" onClick={onEdit}>
+              Редактировать
+            </button>
+
+            <button
+              className="button primary"
+              onClick={() => setShowOperation(true)}
+            >
+              + Начисление
+            </button>
+          </div>
+        </div>
+
+        <div className="card card-pad">
+          <h2 className="section-title">
+            Текущие начисления
+          </h2>
+
+          <div
+            style={{
+              fontSize: 29,
+              fontWeight: 750,
+              color: "#9D8450",
+              marginBottom: 10
+            }}
+          >
+            {formatMoney(total)}
+          </div>
+
+          <div className="page-subtitle">
+            Активные операции и хранение
+          </div>
+
+          <div className="info-list" style={{ marginTop: 18 }}>
+            <div className="info-row">
+              <span className="info-label">Операций</span>
+              <span className="info-value">
+                {clientOperations.length}
+              </span>
+            </div>
+
+            <div className="info-row">
+              <span className="info-label">Хранение</span>
+              <span className="info-value">
+                {clientStorage.length}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="card-actions">
-        <button className="small-button" onClick={onEdit}>
-          Изменить
-        </button>
-      </div>
-    </div>
-  );
-}
+      <div className="card" style={{ marginTop: 18 }}>
+        <div className="card-pad">
+          <h2 className="section-title">
+            Последние операции
+          </h2>
 
-function TariffCard({ tariff }) {
-  const clientName = tariff.clients?.name || "—";
-  const productName = tariff.products?.name;
+          {clientOperations.length === 0 ? (
+            <div className="empty">
+              Операций пока нет
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Дата</th>
+                    <th>Тип</th>
+                    <th>Количество</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                  </tr>
+                </thead>
 
-  return (
-    <div className="data-card">
-      <div className="card-main">
-        <div className="card-eyebrow">
-          {tariffLabels[tariff.tariff_type]}
-        </div>
-
-        <h3>{clientName}</h3>
-
-        <div className="card-details">
-          <span>
-            {productName
-              ? `Номенклатура: ${productName}`
-              : "Тариф клиента"}
-          </span>
-          <span>
-            Действует с {dateRu(tariff.effective_from)}
-          </span>
-        </div>
-      </div>
-
-      <div className="amount-block">
-        {money(tariff.price_rub)}
-      </div>
-    </div>
-  );
-}
-
-function OperationCard({ item, onCancel }) {
-  return (
-    <div className="data-card">
-      <div className="card-main">
-        <div className="card-eyebrow">
-          {tariffLabels[item.tariff_type] || "Операция"}
-        </div>
-
-        <h3>{item.clients?.name || "Клиент"}</h3>
-
-        <div className="card-details">
-          <span>{dateRu(item.shipment_date)}</span>
-
-          {item.products?.name && (
-            <span>{item.products.name}</span>
+                <tbody>
+                  {clientOperations.slice(0, 10).map((item) => (
+                    <tr key={item.id}>
+                      <td>{formatDate(item.shipment_date)}</td>
+                      <td>{getTariffLabel(item.tariff_type)}</td>
+                      <td>{item.quantity}</td>
+                      <td className="amount">
+                        {formatMoney(item.total_rub)}
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            item.status === "cancelled"
+                              ? "cancelled"
+                              : "active"
+                          }`}
+                        >
+                          {getStatusLabel(item.status)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-
-          <span>Количество: {item.quantity}</span>
-
-          {item.note && <span>{item.note}</span>}
         </div>
       </div>
-
-      <div className="card-side">
-        <div className="amount-block">
-          {money(item.total_rub)}
-        </div>
-
-        <StatusBadge status={item.status} />
-
-        {onCancel && (
-          <button
-            className="danger-button"
-            onClick={onCancel}
-          >
-            Отменить
-          </button>
-        )}
-      </div>
-    </div>
+    </>
   );
 }
 
-function StorageCard({ item, onCancel }) {
-  return (
-    <div className="data-card">
-      <div className="card-main">
-        <div className="card-eyebrow">ХРАНЕНИЕ</div>
+function OperationForm({ clients, onCancel, onSaved }) {
+  const [form, setForm] = useState({
+    client_id: clients[0]?.id || "",
+    shipment_date: todayString(),
+    quantity: "1",
+    tariff_type: "small",
+    unit_price_rub: "30",
+    note: ""
+  });
 
-        <h3>{item.clients?.name || "Клиент"}</h3>
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-        <div className="card-details">
-          <span>
-            {dateRu(item.start_date)} —{" "}
-            {dateRu(item.end_date)}
-          </span>
-
-          <span>
-            Объём: {item.volume_m3} м³
-          </span>
-        </div>
-      </div>
-
-      <div className="card-side">
-        <div className="amount-block">
-          {money(item.total_rub)}
-        </div>
-
-        <StatusBadge status={item.status} />
-
-        {onCancel && (
-          <button
-            className="danger-button"
-            onClick={onCancel}
-          >
-            Отменить
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function StatusBadge({ status }) {
-  const labels = {
-    active: "Активно",
-    cancelled: "Отменено",
-    planned: "Запланировано",
-    completed: "Завершено",
+  const pricePresets = {
+    small: 30,
+    medium: 40,
+    large: 55
   };
 
-  return (
-    <span className={`status-badge status-${status}`}>
-      {labels[status] || status}
-    </span>
-  );
-}
+  function update(field, value) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }
 
-function InfoCard({ label, value }) {
-  return (
-    <div className="info-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
+  function changeTariff(value) {
+    setForm((prev) => ({
+      ...prev,
+      tariff_type: value,
+      unit_price_rub: String(pricePresets[value] || 0)
+    }));
+  }
 
-function EmptyState({ text }) {
-  return (
-    <div className="empty-state">
-      <div className="empty-icon">—</div>
-      <div>{text}</div>
-    </div>
-  );
-}
+  async function save(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-function Modal({
-  title,
-  children,
-  onClose,
-}) {
-  return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div
-        className="modal"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="modal-header">
-          <h2>{title}</h2>
+    if (!form.client_id) {
+      setError("Выберите клиента.");
+      setLoading(false);
+      return;
+    }
 
-          <button
-            className="modal-close"
-            onClick={onClose}
-          >
-            ×
-          </button>
+    const quantity = Number(form.quantity);
+    const price = Number(form.unit_price_rub);
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setError("Количество должно быть больше нуля.");
+      setLoading(false);
+      return;
+    }
+
+    if (!Number.isFinite(price) || price < 0) {
+      setError("Укажите корректную цену.");
+      setLoading(false);
+      return;
+    }
+
+    const total = Math.round(quantity * price * 100) / 100;
+
+    const { data: authData } =
+      await supabase.auth.getUser();
+
+    const payload = {
+      client_id: form.client_id,
+      shipment_date: form.shipment_date,
+      quantity,
+      tariff_type: form.tariff_type,
+      unit_price_rub: price,
+      total_rub: total,
+      note: form.note.trim() || null,
+      created_by: authData?.user?.id || null
+    };
+
+    const { data, error: insertError } = await supabase
+      .from("shipments")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (insertError) {
+      setError(insertError.message);
+    } else {
+      onSaved(data);
+    }
+
+    setLoading(false);
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Новое начисление</h1>
+          <div className="page-subtitle">
+            Операционная услуга клиента
+          </div>
+        </div>
+      </div>
+
+      <div className="card card-pad form-card">
+        <div className="notice">
+          Начисление фиксируется как финансовая операция.
+          Товарные остатки и приход в SORTEX не ведутся —
+          фактический складской учёт остаётся в МойСклад.
         </div>
 
-        <div className="modal-body">{children}</div>
+        {error && <div className="error">{error}</div>}
+
+        <form onSubmit={save}>
+          <div className="form-grid">
+            <div className="field full">
+              <label>Клиент *</label>
+              <select
+                value={form.client_id}
+                onChange={(e) =>
+                  update("client_id", e.target.value)
+                }
+              >
+                <option value="">Выберите клиента</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label>Дата *</label>
+              <input
+                type="date"
+                value={form.shipment_date}
+                onChange={(e) =>
+                  update("shipment_date", e.target.value)
+                }
+              />
+            </div>
+
+            <div className="field">
+              <label>Количество *</label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={form.quantity}
+                onChange={(e) =>
+                  update("quantity", e.target.value)
+                }
+              />
+            </div>
+
+            <div className="field">
+              <label>Тариф *</label>
+              <select
+                value={form.tariff_type}
+                onChange={(e) =>
+                  changeTariff(e.target.value)
+                }
+              >
+                <option value="small">Малый</option>
+                <option value="medium">Средний</option>
+                <option value="large">Большой</option>
+              </select>
+            </div>
+
+            <div className="field">
+              <label>Цена за единицу, ₽ *</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.unit_price_rub}
+                onChange={(e) =>
+                  update("unit_price_rub", e.target.value)
+                }
+              />
+            </div>
+
+            <div className="field full">
+              <label>Примечание</label>
+              <textarea
+                value={form.note}
+                onChange={(e) =>
+                  update("note", e.target.value)
+                }
+                placeholder="Дополнительная информация"
+              />
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button
+              type="button"
+              className="button"
+              onClick={onCancel}
+            >
+              Отмена
+            </button>
+
+            <button
+              type="submit"
+              className="button primary"
+              disabled={loading}
+            >
+              {loading ? "Сохранение..." : "Создать начисление"}
+            </button>
+          </div>
+        </form>
       </div>
-    </div>
+    </>
   );
 }
 
-function ModalActions({
-  onCancel,
-  onSave,
-  saveText = "Сохранить",
+function Operations({
+  operations,
+  clients,
+  onAdd,
+  onCancelOperation,
+  reload
 }) {
-  return (
-    <div className="modal-actions">
-      <button
-        className="secondary-button"
-        onClick={onCancel}
-      >
-        Отмена
-      </button>
+  const [search, setSearch] = useState("");
 
-      <button
-        className="primary-button"
-        onClick={onSave}
-      >
-        {saveText}
-      </button>
-    </div>
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+
+    if (!q) return operations;
+
+    return operations.filter((item) =>
+      [
+        item.clients?.name,
+        item.products?.name,
+        item.products?.sku,
+        item.tariff_type,
+        item.note
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [operations, search]);
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">Операции</h1>
+          <div className="page-subtitle">
+            Услуги и финансовые начисления
+          </div>
+        </div>
+      </div>
+
+      <div className="notice">
+        SORTEX хранит здесь именно операционные и финансовые
+        данные. Складские остатки, приходы и движения товара
+        ведутся отдельно в МойСклад.
+      </div>
+
+      <div className="toolbar">
+        <div className="search">
+          <span className="search-symbol">⌕</span>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по операциям..."
+          />
+        </div>
+
+        <button className="button primary" onClick={onAdd}>
+          + Новое начисление
+        </button>
+      </div>
+
+      <div className="card">
+        {filtered.length === 0 ? (
+          <div className="empty">
+            <div className="empty-icon">↗</div>
+            <div>Операций пока нет</div>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Клиент</th>
+                  <th>Услуга</th>
+                  <th>Кол-во</th>
+                  <th>Цена</th>
+                  <th>Сумма</th>
+                  <th>Статус</th>
+                  <th></th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filtered.map((item) => (
+                  <tr key={item.id}>
+                    <td>{formatDate(item.shipment_date)}</td>
+
+                    <td>
+                      {item.clients?.name || "—"}
+                    </td>
+
+                    <td>
+                      {getTariffLabel(item.tariff_type)}
+                    </td>
+
+                    <td>{item.quantity}</td>
+
+                    <td>
+                      {formatMoney(item.unit_price_rub)}
+                    </td>
+
+                    <td className="amount">
+                      {formatMoney(item.total_rub)}
+                    </td>
+
+                    <td>
+                      <span
+                        className={`badge ${
+                          item.status === "cancelled"
+                            ? "cancelled"
+                            : "active"
+                        }`}
+                      >
+                        {getStatusLabel(item.status)}
+                      </span>
+                    </td>
+
+                    <td>
+                      {item.status !== "cancelled" && (
+                        <button
+                          className="button small danger"
+                          onClick={async () => {
+                            await onCancelOperation(item.id);
+                            reload();
+                          }}
+                        >
+                          Отменить
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
-function FormField({
-  label,
-  value,
-  onChange,
-  type = "text",
-  textarea = false,
-}) {
-  return (
-    <label className="form-field">
-      <span>{label}</span>
+function Payable({ clients, operations, storage }) {
+  const [from, setFrom] = useState(firstDayOfMonth());
+  const [to, setTo] = useState(todayString());
 
-      {textarea ? (
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          rows={4}
-        />
-      ) : (
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      )}
-    </label>
+  const data = useMemo(() => {
+    const result = new Map();
+
+    clients.forEach((client) => {
+      result.set(client.id, {
+        client_id: client.id,
+        client_name: client.name,
+        shipment: 0,
+        storage: 0
+      });
+    });
+
+    operations
+      .filter((x) => x.status === "active")
+      .filter(
+        (x) =>
+          x.shipment_date >= from &&
+          x.shipment_date <= to
+      )
+      .forEach((x) => {
+        const row = result.get(x.client_id);
+        if (row) {
+          row.shipment += Number(x.total_rub || 0);
+        }
+      });
+
+    storage
+      .filter((x) => x.status !== "cancelled")
+      .filter((x) => {
+        const start = x.start_date || "";
+        const end = x.end_date || x.start_date || "";
+        return end >= from && start <= to;
+      })
+      .forEach((x) => {
+        const row = result.get(x.client_id);
+        if (row) {
+          row.storage += Number(x.total_rub || 0);
+        }
+      });
+
+    return [...result.values()]
+      .map((x) => ({
+        ...x,
+        total: x.shipment + x.storage
+      }))
+      .filter((x) => x.total > 0)
+      .sort((a, b) => b.total - a.total);
+  }, [clients, operations, storage, from, to]);
+
+  const grandTotal = data.reduce(
+    (sum, x) => sum + x.total,
+    0
   );
-}
 
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-}) {
   return (
-    <label className="form-field">
-      <span>{label}</span>
+    <>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">К оплате</h1>
+          <div className="page-subtitle">
+            Начисления за выбранный период
+          </div>
+        </div>
+      </div>
 
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        {options.map((option) => (
-          <option
-            key={option.value}
-            value={option.value}
+      <div className="card card-pad" style={{ marginBottom: 16 }}>
+        <div className="period-box">
+          <div className="field">
+            <label>С</label>
+            <input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+          </div>
+
+          <div className="field">
+            <label>По</label>
+            <input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </div>
+
+          <button
+            className="button"
+            onClick={() => {
+              setFrom(firstDayOfMonth());
+              setTo(todayString());
+            }}
           >
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+            Этот месяц
+          </button>
+        </div>
+      </div>
+
+      <div className="notice">
+        Сейчас раздел показывает активные начисления за период.
+        Отдельные статусы счёта «выставлен / оплачен» пока не
+        записываются в БД, поскольку для них требуется отдельная
+        сущность биллинга.
+      </div>
+
+      <div className="stats">
+        <div className="card stat-card">
+          <div className="stat-label">Клиентов к оплате</div>
+          <div className="stat-value">{data.length}</div>
+        </div>
+
+        <div className="card stat-card">
+          <div className="stat-label">Всего начислено</div>
+          <div className="stat-value accent">
+            {formatMoney(grandTotal)}
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        {data.length === 0 ? (
+          <div className="empty">
+            За выбранный период начислений нет.
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Клиент</th>
+                  <th>Услуги</th>
+                  <th>Хранение</th>
+                  <th>Всего</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {data.map((row) => (
+                  <tr key={row.client_id}>
+                    <td className="client-name">
+                      {row.client_name}
+                    </td>
+
+                    <td>{formatMoney(row.shipment)}</td>
+                    <td>{formatMoney(row.storage)}</td>
+
+                    <td className="amount accent">
+                      {formatMoney(row.total)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
-function SearchIcon() {
-  return null;
+function History({ audit }) {
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">История</h1>
+          <div className="page-subtitle">
+            Журнал изменений системы
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        {audit.length === 0 ? (
+          <div className="empty">
+            История пока пуста.
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Объект</th>
+                  <th>Действие</th>
+                  <th>Пользователь</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {audit.map((item) => (
+                  <tr key={item.id}>
+                    <td>{formatDate(item.changed_at)}</td>
+                    <td>{item.entity_type || "—"}</td>
+                    <td>{item.action || "—"}</td>
+                    <td>
+                      {item.changed_by || "Система"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  );
 }
 
-function AppStyles() {
-  return null;
+function App({ session }) {
+  const [activePage, setActivePage] = useState("dashboard");
+
+  const [clients, setClients] = useState([]);
+  const [operations, setOperations] = useState([]);
+  const [storage, setStorage] = useState([]);
+  const [audit, setAudit] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [globalError, setGlobalError] = useState("");
+
+  const [clientSearch, setClientSearch] = useState("");
+
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [clientForm, setClientForm] = useState(null);
+
+  async function loadData() {
+    setLoading(true);
+    setGlobalError("");
+
+    const [
+      clientsResult,
+      operationsResult,
+      storageResult,
+      auditResult
+    ] = await Promise.all([
+      supabase
+        .from("clients")
+        .select("*")
+        .order("name"),
+
+      supabase
+        .from("shipments")
+        .select("*, clients(name), products(name, sku)")
+        .order("shipment_date", { ascending: false }),
+
+      supabase
+        .from("storage_records")
+        .select("*, clients(name)")
+        .order("start_date", { ascending: false }),
+
+      supabase
+        .from("audit_log")
+        .select("*")
+        .order("changed_at", { ascending: false })
+        .limit(100)
+    ]);
+
+    const firstError =
+      clientsResult.error ||
+      operationsResult.error ||
+      storageResult.error ||
+      auditResult.error;
+
+    if (firstError) {
+      setGlobalError(firstError.message);
+    }
+
+    setClients(clientsResult.data || []);
+    setOperations(operationsResult.data || []);
+    setStorage(storageResult.data || []);
+    setAudit(auditResult.data || []);
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function logout() {
+    await supabase.auth.signOut();
+  }
+
+  async function cancelOperation(id) {
+    const confirmed = window.confirm(
+      "Отменить эту финансовую операцию? Физически она удалена не будет."
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase.rpc(
+      "cancel_shipment",
+      {
+        p_shipment_id: id
+      }
+    );
+
+    if (error) {
+      alert(error.message);
+    }
+  }
+
+  function pageTitle() {
+    const found = NAV_ITEMS.find(
+      (x) => x.id === activePage
+    );
+    return found?.label || "SORTEX";
+  }
+
+  if (loading) {
+    return (
+      <>
+        <AppStyles />
+        <div className="loading">Загрузка SORTEX...</div>
+      </>
+    );
+  }
+
+  if (clientForm !== null) {
+    return (
+      <>
+        <AppStyles />
+        <div className="app">
+          <Sidebar
+            activePage="clients"
+            setPage={(page) => {
+              setClientForm(null);
+              setActivePage(page);
+            }}
+            user={session.user}
+            logout={logout}
+          />
+
+          <main className="main">
+            <MobileHeader pageTitle="Клиенты" />
+
+            <div className="content">
+              <ClientForm
+                initial={clientForm}
+                onCancel={() => setClientForm(null)}
+                onSaved={(saved) => {
+                  setClientForm(null);
+                  setSelectedClient(saved);
+                  loadData();
+                }}
+              />
+            </div>
+          </main>
+        </div>
+      </>
+    );
+  }
+
+  if (selectedClient) {
+    const currentClient =
+      clients.find((x) => x.id === selectedClient.id) ||
+      selectedClient;
+
+    return (
+      <>
+        <AppStyles />
+
+        <div className="app">
+          <Sidebar
+            activePage="clients"
+            setPage={(page) => {
+              setSelectedClient(null);
+              setActivePage(page);
+            }}
+            user={session.user}
+            logout={logout}
+          />
+
+          <main className="main">
+            <MobileHeader pageTitle={currentClient.name} />
+
+            <div className="content">
+              <ClientDetail
+                client={currentClient}
+                operations={operations}
+                storage={storage}
+                onBack={() => setSelectedClient(null)}
+                onEdit={() => setClientForm(currentClient)}
+                reload={loadData}
+              />
+            </div>
+          </main>
+        </div>
+      </>
+    );
+  }
+
+  let page;
+
+  if (activePage === "dashboard") {
+    page = (
+      <Dashboard
+        clients={clients}
+        operations={operations}
+        storage={storage}
+      />
+    );
+  }
+
+  if (activePage === "clients") {
+    page = (
+      <Clients
+        clients={clients}
+        search={clientSearch}
+        setSearch={setClientSearch}
+        onAdd={() => setClientForm({})}
+        onOpen={(client) => setSelectedClient(client)}
+      />
+    );
+  }
+
+  if (activePage === "operations") {
+    page = (
+      <Operations
+        operations={operations}
+        clients={clients}
+        onAdd={() => setActivePage("new-operation")}
+        onCancelOperation={cancelOperation}
+        reload={loadData}
+      />
+    );
+  }
+
+  if (activePage === "new-operation") {
+    page = (
+      <OperationForm
+        clients={clients}
+        onCancel={() => setActivePage("operations")}
+        onSaved={() => {
+          setActivePage("operations");
+          loadData();
+        }}
+      />
+    );
+  }
+
+  if (activePage === "payable") {
+    page = (
+      <Payable
+        clients={clients}
+        operations={operations}
+        storage={storage}
+      />
+    );
+  }
+
+  if (activePage === "history") {
+    page = <History audit={audit} />;
+  }
+
+  return (
+    <>
+      <AppStyles />
+
+      <div className="app">
+        <Sidebar
+          activePage={activePage}
+          setPage={setActivePage}
+          user={session.user}
+          logout={logout}
+        />
+
+        <main className="main">
+          <MobileHeader pageTitle={pageTitle()} />
+
+          <div className="topbar">
+            <div className="topbar-title">
+              {pageTitle()}
+            </div>
+
+            <div className="topbar-date">
+              {new Intl.DateTimeFormat("ru-RU", {
+                day: "numeric",
+                month: "long",
+                year: "numeric"
+              }).format(new Date())}
+            </div>
+          </div>
+
+          <div className="content">
+            {globalError && (
+              <div className="error">{globalError}</div>
+            )}
+
+            {page}
+          </div>
+        </main>
+
+        <MobileNavigation
+          activePage={activePage}
+          setPage={setActivePage}
+        />
+      </div>
+    </>
+  );
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+function Root() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
+        setSession(newSession);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <>
+        <AppStyles />
+        <div className="loading">
+          Загрузка SORTEX...
+        </div>
+      </>
+    );
+  }
+
+  if (!session) {
+    return (
+      <Login
+        onLoggedIn={(newSession) =>
+          setSession(newSession)
+        }
+      />
+    );
+  }
+
+  return <App session={session} />;
+}
+
+createRoot(document.getElementById("root")).render(
+  <Root />
+);
