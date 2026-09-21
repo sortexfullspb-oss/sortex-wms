@@ -9,59 +9,643 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const APP_CSS = `
 :root{
---bg:#11110f;--bg2:#171614;--panel:#1c1b18;--panel2:#23211d;
---champagne:#c9b27d;--champagne-light:#ead9b1;
---text:#f4f0e8;--text-soft:#d5cec1;--muted:#8e897f;--muted2:#666159;
---green:#8daa93;--red:#c18a81;--border:rgba(218,199,157,.14);
---border-strong:rgba(218,199,157,.27);--glow:rgba(201,178,125,.12);
---shadow:0 18px 55px rgba(0,0,0,.34);--radius:19px}
-*{box-sizing:border-box}
-html,body,#root{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Segoe UI",Arial,sans-serif;color:var(--text);background:radial-gradient(circle at 78% 0%,rgba(201,178,125,.06),transparent 31%),radial-gradient(circle at 8% 95%,rgba(201,178,125,.025),transparent 28%),var(--bg);-webkit-font-smoothing:antialiased}
-button,input,select,textarea{font:inherit}button{cursor:pointer;-webkit-tap-highlight-color:transparent}
-.app{min-height:100vh;background:var(--bg)}.shell{display:flex;min-height:100vh}
-.sidebar{width:258px;background:linear-gradient(180deg,#1d1c19,#10100f);color:var(--text);padding:28px 17px;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:20;border-right:1px solid var(--border);box-shadow:18px 0 50px rgba(0,0,0,.18)}
-.brand{padding:5px 13px 32px}.brand-name{font-size:27px;font-weight:700;letter-spacing:.18em;color:#f5f0e7;text-shadow:0 0 28px rgba(201,178,125,.12)}
-.brand-sub{margin-top:8px;color:var(--muted);font-size:10px;letter-spacing:.16em;text-transform:uppercase}
-.nav{display:flex;flex-direction:column;gap:6px}.nav button{position:relative;border:1px solid transparent;background:transparent;color:#969188;padding:13px 15px;border-radius:14px;text-align:left;font-size:14px;transition:.2s ease}
-.nav button:hover{background:rgba(201,178,125,.045);color:#eee8dc;border-color:rgba(201,178,125,.08)}
-.nav button.active{color:#f3ead9;background:linear-gradient(90deg,rgba(201,178,125,.13),rgba(201,178,125,.045));border-color:rgba(201,178,125,.18);box-shadow:inset 0 0 22px rgba(201,178,125,.035),0 0 20px rgba(201,178,125,.045)}
-.nav button.active:before{content:"";position:absolute;left:-1px;top:50%;width:3px;height:22px;transform:translateY(-50%);border-radius:0 4px 4px 0;background:var(--champagne);box-shadow:0 0 12px rgba(201,178,125,.55)}
-.sidebar-bottom{margin-top:auto;padding:16px 12px 0;border-top:1px solid rgba(255,255,255,.055)}.user-mini{color:#aaa49a;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:12px}
-.logout{width:100%;border:1px solid rgba(255,255,255,.09);color:#aaa49a;background:rgba(255,255,255,.025);padding:10px;border-radius:12px;transition:.2s ease}.logout:hover{color:#eee8dc;border-color:rgba(201,178,125,.18);background:rgba(201,178,125,.045);box-shadow:0 0 20px rgba(201,178,125,.04)}
-.main{margin-left:258px;width:calc(100% - 258px);min-width:0;background:radial-gradient(circle at 75% 0%,rgba(201,178,125,.035),transparent 28%)}
-.topbar{height:76px;background:rgba(18,17,16,.82);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 34px;position:sticky;top:0;z-index:10;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
-.topbar-title{font-size:20px;font-weight:600;color:#eee9df}.topbar-date{color:var(--muted);font-size:13px}
-.content{padding:32px 34px 100px;max-width:1500px;margin:auto}.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:25px}.page-title{font-size:30px;font-weight:650;letter-spacing:-.035em;color:#f2eee6}.page-subtitle{color:var(--muted);margin-top:7px;font-size:14px}
-.card{position:relative;background:linear-gradient(145deg,rgba(34,32,29,.94),rgba(25,24,22,.97));border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}.card:before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(201,178,125,.2),transparent)}
-.card-pad{padding:22px}.grid{display:grid;gap:16px}.grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}
-.stat{padding:23px;min-height:142px;transition:.2s ease}.stat:hover{transform:translateY(-2px);border-color:rgba(201,178,125,.2);box-shadow:0 20px 55px rgba(0,0,0,.3),0 0 28px rgba(201,178,125,.055)}
-.stat-label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.12em}.stat-value{margin-top:12px;font-size:29px;font-weight:650;color:#f3eee5;letter-spacing:-.025em}.stat-note{color:var(--muted2);margin-top:6px;font-size:12px}
-.btn{position:relative;border-radius:12px;padding:11px 17px;font-weight:600;font-size:13px;transition:.2s ease;overflow:hidden}
-.btn-primary{border:1px solid rgba(230,213,170,.32);background:linear-gradient(135deg,#d8c18d,#b49a64);color:#171512;box-shadow:0 7px 25px rgba(0,0,0,.28),0 0 22px rgba(201,178,125,.12)}.btn-primary:hover{transform:translateY(-1px);box-shadow:0 10px 30px rgba(0,0,0,.35),0 0 30px rgba(201,178,125,.2)}
-.btn-secondary{border:1px solid rgba(201,178,125,.22);background:rgba(201,178,125,.08);color:var(--champagne-light)}.btn-secondary:hover{background:rgba(201,178,125,.13);border-color:rgba(201,178,125,.35);box-shadow:0 0 25px rgba(201,178,125,.09)}
-.btn-ghost{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.1);color:#cbc5b9}.btn-ghost:hover{color:#f0ebe2;border-color:rgba(201,178,125,.24);background:rgba(201,178,125,.045);box-shadow:0 0 20px rgba(201,178,125,.05)}
-.btn-danger{background:rgba(180,123,115,.12);border:1px solid rgba(180,123,115,.22);color:#d29b92}.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}.actions{display:flex;flex-wrap:wrap;gap:9px}
-.input,.select,.textarea{width:100%;border:1px solid rgba(255,255,255,.095);background:rgba(8,8,7,.48);border-radius:12px;padding:12px 13px;outline:none;color:#eee9df;transition:.18s ease}.input::placeholder,.textarea::placeholder{color:#646159}.input:hover,.select:hover,.textarea:hover{border-color:rgba(201,178,125,.15)}.input:focus,.select:focus,.textarea:focus{border-color:rgba(201,178,125,.48);background:rgba(201,178,125,.035);box-shadow:0 0 0 3px rgba(201,178,125,.075),0 0 24px rgba(201,178,125,.055)}
-.textarea{min-height:95px;resize:vertical}.field{margin-bottom:16px}.label{display:block;font-size:11px;color:#aaa49a;margin-bottom:7px;font-weight:600}
-.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:650px}th{color:#77736a;font-size:10px;font-weight:600;text-align:left;text-transform:uppercase;letter-spacing:.09em;padding:13px 16px;border-bottom:1px solid var(--border)}td{padding:15px 16px;border-bottom:1px solid rgba(255,255,255,.045);font-size:13px;color:#d7d1c6}tr:last-child td{border-bottom:0}tbody tr{transition:.18s ease}tbody tr:hover{background:rgba(201,178,125,.035)}
-.clickable{cursor:pointer}.clickable:hover{background:rgba(201,178,125,.04)}
-.badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:650;letter-spacing:.025em;border:1px solid transparent}.badge-active{background:rgba(127,157,134,.11);border-color:rgba(127,157,134,.18);color:#9dbba3}.badge-cancelled{background:rgba(180,123,115,.11);border-color:rgba(180,123,115,.18);color:#d39a91}.badge-neutral{background:rgba(255,255,255,.045);border-color:rgba(255,255,255,.07);color:#aaa49a}
-.empty{text-align:center;padding:45px 20px;color:var(--muted)}.search{max-width:360px}.form-card{max-width:820px}.divider{height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);margin:20px 0}.tariff-box{border:1px solid var(--border);border-radius:15px;padding:17px;background:rgba(255,255,255,.018)}.tariff-title{font-weight:650;margin-bottom:15px;color:#eee9df}.price-big{font-size:22px;font-weight:650;color:var(--champagne-light)}
-.switch-row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:13px 0}.switch{width:46px;height:26px;border-radius:99px;background:#393733;padding:3px;border:1px solid rgba(255,255,255,.07);position:relative;transition:.2s ease}.switch span{width:20px;height:20px;background:#c7c1b6;display:block;border-radius:50%;transition:.2s ease;box-shadow:0 2px 5px rgba(0,0,0,.25)}.switch.on{background:linear-gradient(90deg,#a9905e,#d6bd87);border-color:rgba(230,213,170,.35);box-shadow:0 0 18px rgba(201,178,125,.16)}.switch.on span{transform:translateX(20px);background:#fffaf0}
-.notice{padding:13px 15px;background:rgba(201,178,125,.045);border:1px solid rgba(201,178,125,.1);border-radius:12px;color:#aaa397;font-size:13px;line-height:1.5}.error{padding:12px 14px;background:rgba(180,123,115,.1);border:1px solid rgba(180,123,115,.18);color:#d39a91;border-radius:11px;font-size:13px;margin-bottom:14px}.success{padding:12px 14px;background:rgba(127,157,134,.1);border:1px solid rgba(127,157,134,.17);color:#9dbba3;border-radius:11px;font-size:13px;margin-bottom:14px}.mobile-nav{display:none}
-.login{min-height:100vh;background:radial-gradient(circle at 50% 20%,rgba(201,178,125,.1),transparent 30%),radial-gradient(circle at 80% 90%,rgba(201,178,125,.055),transparent 30%),#0d0d0c;display:flex;align-items:center;justify-content:center;padding:24px}.login-shell{width:min(440px,100%)}.login-brand{text-align:center;color:#fff;margin-bottom:25px}.login-brand-name{font-size:38px;font-weight:700;letter-spacing:.2em;color:#f5f0e7;text-shadow:0 0 35px rgba(201,178,125,.16)}.login-brand-sub{margin-top:9px;color:#77736b;font-size:10px;letter-spacing:.18em;text-transform:uppercase}.login-card{background:linear-gradient(145deg,rgba(31,30,27,.97),rgba(19,19,17,.98));border-radius:24px;padding:31px;box-shadow:0 30px 100px rgba(0,0,0,.5),0 0 50px rgba(201,178,125,.045);border:1px solid rgba(201,178,125,.14)}.login-card:before{content:"";display:block;height:1px;margin:-31px -31px 29px;background:linear-gradient(90deg,transparent,rgba(201,178,125,.38),transparent)}.login-title{font-size:24px;font-weight:650;margin-bottom:7px;color:#f0ebe2}.login-sub{color:#858078;font-size:13px;margin-bottom:25px}.login-accent{width:46px;height:2px;background:linear-gradient(90deg,#a88e5a,#e1ca95);margin-bottom:22px;box-shadow:0 0 15px rgba(201,178,125,.25)}.login-btn{width:100%;padding:13px;margin-top:4px}.login-footer{text-align:center;color:#555149;font-size:10px;letter-spacing:.04em;margin-top:18px}
-::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:#11110f}::-webkit-scrollbar-thumb{background:#35322d;border-radius:10px}::-webkit-scrollbar-thumb:hover{background:#4a453c}
-@media(max-width:900px){
-.sidebar{display:none}.main{margin-left:0;width:100%;padding-bottom:78px}.topbar{height:68px;padding:0 18px}.content{padding:24px 16px 88px}.grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}
-.mobile-nav{display:flex;position:fixed;left:10px;right:10px;bottom:10px;height:64px;background:rgba(24,23,21,.94);border:1px solid rgba(201,178,125,.13);border-radius:18px;z-index:30;justify-content:space-around;align-items:center;padding:5px 4px calc(5px + env(safe-area-inset-bottom)) 4px;backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);box-shadow:0 15px 45px rgba(0,0,0,.45),0 0 30px rgba(201,178,125,.045)}
-.mobile-nav button{position:relative;background:transparent;border:0;color:#77736b;font-size:10px;padding:9px 10px;border-radius:12px;transition:.2s ease}.mobile-nav button.active{color:#ead9b1;background:rgba(201,178,125,.075);text-shadow:0 0 12px rgba(201,178,125,.18)}.mobile-nav button.active:after{content:"";position:absolute;left:50%;bottom:3px;width:18px;height:2px;transform:translateX(-50%);border-radius:10px;background:var(--champagne);box-shadow:0 0 10px rgba(201,178,125,.45)}
+  --graphite:#242321;
+  --graphite-2:#302e2a;
+  --champagne:#c8b58a;
+  --champagne-light:#e8dec8;
+  --milk:#f7f5f0;
+  --card:#fffdf9;
+  --border:#ded9cf;
+  --text:#292825;
+  --muted:#77736b;
+  --green:#54735d;
+  --red:#8a5c56;
+  --shadow:0 16px 45px rgba(36,35,33,.08);
+  --radius:18px;
 }
-@media(max-width:650px){
-.topbar-date{display:none}.topbar-title{font-size:18px}.page-head{align-items:flex-start;flex-direction:column;gap:14px}.page-title{font-size:25px}.page-subtitle{font-size:13px}.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}.card-pad{padding:18px}.stat{min-height:125px;padding:19px}.stat-value{font-size:27px}.btn{min-height:43px}.actions{width:100%}.actions .btn{flex:1 1 auto}.login{padding:18px}.login-card{padding:24px}.login-card:before{margin:-24px -24px 23px}.login-brand-name{font-size:32px}.login-brand-sub{font-size:9px}.input,.select,.textarea{font-size:16px}table{min-width:700px}
-}
-@supports(padding:max(0px)){.content{padding-bottom:max(100px,env(safe-area-inset-bottom))}.mobile-nav{bottom:max(10px,env(safe-area-inset-bottom))}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 
+*{box-sizing:border-box}
+
+html,body,#root{
+  margin:0;
+  min-height:100%;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",
+  "Segoe UI",Arial,sans-serif;
+  color:var(--text);
+  background:var(--milk);
+}
+
+button,input,select,textarea{
+  font:inherit;
+}
+
+button{
+  cursor:pointer;
+}
+
+.app{
+  min-height:100vh;
+  background:var(--milk);
+}
+
+.shell{
+  display:flex;
+  min-height:100vh;
+}
+
+.sidebar{
+  width:250px;
+  background:var(--graphite);
+  color:#fff;
+  padding:28px 18px;
+  display:flex;
+  flex-direction:column;
+  position:fixed;
+  inset:0 auto 0 0;
+  z-index:20;
+}
+
+.brand{
+  padding:4px 12px 30px;
+}
+
+.brand-name{
+  font-size:26px;
+  font-weight:700;
+  letter-spacing:.16em;
+}
+
+.brand-sub{
+  margin-top:7px;
+  color:#a9a49b;
+  font-size:11px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+.nav{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+
+.nav button{
+  border:0;
+  background:transparent;
+  color:#bdb8af;
+  padding:13px 14px;
+  border-radius:12px;
+  text-align:left;
+  font-size:14px;
+  transition:.18s ease;
+}
+
+.nav button:hover{
+  background:#302e2a;
+  color:#fff;
+}
+
+.nav button.active{
+  background:#3a3732;
+  color:#fff;
+}
+
+.sidebar-bottom{
+  margin-top:auto;
+  padding:14px 12px 0;
+  border-top:1px solid rgba(255,255,255,.08);
+}
+
+.user-mini{
+  color:#ddd8cf;
+  font-size:12px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  margin-bottom:12px;
+}
+
+.logout{
+  width:100%;
+  border:1px solid rgba(255,255,255,.12);
+  color:#d8d3ca;
+  background:transparent;
+  padding:10px;
+  border-radius:10px;
+}
+
+.main{
+  margin-left:250px;
+  width:calc(100% - 250px);
+  min-width:0;
+}
+
+.topbar{
+  height:74px;
+  background:rgba(255,253,249,.9);
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 34px;
+  position:sticky;
+  top:0;
+  z-index:10;
+  backdrop-filter:blur(12px);
+}
+
+.topbar-title{
+  font-size:20px;
+  font-weight:600;
+}
+
+.topbar-date{
+  color:var(--muted);
+  font-size:13px;
+}
+
+.content{
+  padding:30px 34px 90px;
+  max-width:1500px;
+  margin:auto;
+}
+
+.page-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:20px;
+  margin-bottom:25px;
+}
+
+.page-title{
+  font-size:29px;
+  font-weight:650;
+  letter-spacing:-.025em;
+}
+
+.page-subtitle{
+  color:var(--muted);
+  margin-top:6px;
+  font-size:14px;
+}
+
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+}
+
+.card-pad{
+  padding:22px;
+}
+
+.grid{
+  display:grid;
+  gap:16px;
+}
+
+.grid-2{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+
+.grid-3{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+
+.grid-4{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+
+.stat{
+  padding:22px;
+}
+
+.stat-label{
+  color:var(--muted);
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+
+.stat-value{
+  margin-top:10px;
+  font-size:29px;
+  font-weight:650;
+}
+
+.stat-note{
+  color:var(--muted);
+  margin-top:5px;
+  font-size:12px;
+}
+
+.btn{
+  border:0;
+  border-radius:11px;
+  padding:11px 16px;
+  font-weight:600;
+  font-size:13px;
+  transition:.18s ease;
+}
+
+.btn-primary{
+  background:var(--graphite);
+  color:#fff;
+}
+
+.btn-primary:hover{
+  background:var(--graphite-2);
+}
+
+.btn-secondary{
+  background:var(--champagne-light);
+  color:var(--graphite);
+}
+
+.btn-secondary:hover{
+  background:#ded0b2;
+}
+
+.btn-ghost{
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--text);
+}
+
+.btn-danger{
+  background:#f1e3df;
+  color:var(--red);
+}
+
+.btn:disabled{
+  opacity:.5;
+  cursor:not-allowed;
+}
+
+.actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:9px;
+}
+
+.input,
+.select,
+.textarea{
+  width:100%;
+  border:1px solid var(--border);
+  background:#fff;
+  border-radius:11px;
+  padding:12px 13px;
+  outline:none;
+  color:var(--text);
+  transition:.15s ease;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus{
+  border-color:var(--champagne);
+  box-shadow:0 0 0 3px rgba(200,181,138,.15);
+}
+
+.textarea{
+  min-height:95px;
+  resize:vertical;
+}
+
+.field{
+  margin-bottom:16px;
+}
+
+.label{
+  display:block;
+  font-size:12px;
+  color:var(--muted);
+  margin-bottom:7px;
+  font-weight:600;
+}
+
+.table-wrap{
+  overflow:auto;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  min-width:650px;
+}
+
+th{
+  color:var(--muted);
+  font-size:11px;
+  font-weight:600;
+  text-align:left;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  padding:13px 16px;
+  border-bottom:1px solid var(--border);
+}
+
+td{
+  padding:15px 16px;
+  border-bottom:1px solid #eeeae2;
+  font-size:13px;
+}
+
+tr:last-child td{
+  border-bottom:0;
+}
+
+.clickable{
+  cursor:pointer;
+}
+
+.clickable:hover{
+  background:#faf7f1;
+}
+
+.badge{
+  display:inline-flex;
+  align-items:center;
+  padding:5px 9px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:650;
+}
+
+.badge-active{
+  background:#e7efe9;
+  color:var(--green);
+}
+
+.badge-cancelled{
+  background:#f2e5e1;
+  color:var(--red);
+}
+
+.badge-neutral{
+  background:#eeeae2;
+  color:#68635b;
+}
+
+.empty{
+  text-align:center;
+  padding:45px 20px;
+  color:var(--muted);
+}
+
+.search{
+  max-width:360px;
+}
+
+.form-card{
+  max-width:820px;
+}
+
+.divider{
+  height:1px;
+  background:var(--border);
+  margin:20px 0;
+}
+
+.tariff-box{
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:17px;
+  background:#fff;
+}
+
+.tariff-title{
+  font-weight:650;
+  margin-bottom:15px;
+}
+
+.price-big{
+  font-size:22px;
+  font-weight:650;
+}
+
+.switch-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:20px;
+  padding:13px 0;
+}
+
+.switch{
+  width:46px;
+  height:26px;
+  border-radius:99px;
+  background:#c9c5bd;
+  padding:3px;
+  border:0;
+  position:relative;
+}
+
+.switch span{
+  width:20px;
+  height:20px;
+  background:#fff;
+  display:block;
+  border-radius:50%;
+  transition:.18s;
+}
+
+.switch.on{
+  background:var(--graphite);
+}
+
+.switch.on span{
+  transform:translateX(20px);
+}
+
+.notice{
+  padding:13px 15px;
+  background:#f1eee7;
+  border-radius:12px;
+  color:#69645c;
+  font-size:13px;
+  line-height:1.5;
+}
+
+.error{
+  padding:12px 14px;
+  background:#f4e4e0;
+  color:#854f48;
+  border-radius:11px;
+  font-size:13px;
+  margin-bottom:14px;
+}
+
+.success{
+  padding:12px 14px;
+  background:#e6eee8;
+  color:#4e6956;
+  border-radius:11px;
+  font-size:13px;
+  margin-bottom:14px;
+}
+
+.mobile-nav{
+  display:none;
+}
+
+.login{
+  min-height:100vh;
+  background:
+    radial-gradient(circle at 80% 20%,rgba(200,181,138,.09),transparent 30%),
+    var(--graphite);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+}
+
+.login-shell{
+  width:min(440px,100%);
+}
+
+.login-brand{
+  text-align:center;
+  color:#fff;
+  margin-bottom:25px;
+}
+
+.login-brand-name{
+  font-size:38px;
+  font-weight:700;
+  letter-spacing:.18em;
+}
+
+.login-brand-sub{
+  margin-top:9px;
+  color:#a9a49b;
+  font-size:11px;
+  letter-spacing:.17em;
+  text-transform:uppercase;
+}
+
+.login-card{
+  background:#fffdf9;
+  border-radius:24px;
+  padding:31px;
+  box-shadow:0 25px 80px rgba(0,0,0,.25);
+  border:1px solid rgba(232,222,200,.35);
+}
+
+.login-title{
+  font-size:24px;
+  font-weight:650;
+  margin-bottom:7px;
+}
+
+.login-sub{
+  color:var(--muted);
+  font-size:13px;
+  margin-bottom:25px;
+}
+
+.login-accent{
+  width:46px;
+  height:2px;
+  background:var(--champagne);
+  margin-bottom:22px;
+}
+
+.login-btn{
+  width:100%;
+  padding:13px;
+  margin-top:4px;
+}
+
+.login-footer{
+  text-align:center;
+  color:#8e8980;
+  font-size:11px;
+  margin-top:18px;
+}
+
+@media(max-width:900px){
+  .sidebar{
+    display:none;
+  }
+
+  .main{
+    margin-left:0;
+    width:100%;
+    padding-bottom:72px;
+  }
+
+  .topbar{
+    padding:0 18px;
+  }
+
+  .content{
+    padding:22px 16px 80px;
+  }
+
+  .grid-4{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .mobile-nav{
+    display:flex;
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    height:68px;
+    background:rgba(36,35,33,.97);
+    z-index:30;
+    justify-content:space-around;
+    align-items:center;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+
+  .mobile-nav button{
+    background:transparent;
+    border:0;
+    color:#aaa69e;
+    font-size:10px;
+    padding:8px;
+  }
+
+  .mobile-nav button.active{
+    color:#fff;
+  }
+}
+
+@media(max-width:650px){
+  .topbar-date{
+    display:none;
+  }
+
+  .page-head{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+
+  .page-title{
+    font-size:25px;
+  }
+
+  .grid-2,
+  .grid-3,
+  .grid-4{
+    grid-template-columns:1fr;
+  }
+
+  .login-card{
+    padding:24px;
+  }
+
+  .login-brand-name{
+    font-size:32px;
+  }
+}
 `;
 
 function money(value) {
@@ -224,7 +808,8 @@ function Dashboard({ session }) {
     ["products", "Товары"],
     ["tariffs", "Тарифы"],
     ["shipments", "Операции"],
-    ["payable", "К оплате"],
+    ["payable", "Начисления"],
+    ["reports", "Отчёты"],
     ["history", "История"],
   ];
 
@@ -258,6 +843,7 @@ function Dashboard({ session }) {
 
           <div className="sidebar-bottom">
             <div className="user-mini">{session.user.email}</div>
+
             <button className="logout" onClick={logout}>
               Выйти
             </button>
@@ -267,6 +853,7 @@ function Dashboard({ session }) {
         <main className="main">
           <header className="topbar">
             <div className="topbar-title">{currentTitle}</div>
+
             <div className="topbar-date">
               {new Date().toLocaleDateString("ru-RU", {
                 day: "numeric",
@@ -283,6 +870,7 @@ function Dashboard({ session }) {
             {page === "tariffs" && <Tariffs />}
             {page === "shipments" && <Shipments />}
             {page === "payable" && <Payable />}
+            {page === "reports" && <Reports />}
             {page === "history" && <History />}
           </div>
         </main>
@@ -359,6 +947,7 @@ function Home() {
       <div className="page-head">
         <div>
           <div className="page-title">Добро пожаловать в SORTEX</div>
+
           <div className="page-subtitle">
             Финансовый и операционный кабинет склада
           </div>
@@ -397,9 +986,8 @@ function Home() {
         </div>
 
         <div className="notice">
-          Первый килограмм включён в базовый тариф товара. Каждый следующий
-          килограмм рассчитывается отдельно. Тариф может быть задан на уровне
-          конкретного товара или клиента.
+          У каждого товара есть собственная цена за обработку. Дополнительные
+          услуги, например приёмка товара, подключаются отдельно.
         </div>
       </div>
     </>
@@ -428,16 +1016,27 @@ function Clients() {
     load();
   }, []);
 
-  const filtered = clients.filter((c) =>
-    `${c.name} ${c.legal_name || ""} ${c.inn || ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+  const filtered = clients.filter((client) => {
+    const q = search.toLowerCase().trim();
 
-  if (editing !== null) {
+    if (!q) return true;
+
+    return [
+      client.name,
+      client.legal_name,
+      client.inn,
+      client.contact_name,
+      client.phone,
+      client.email,
+    ]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(q));
+  });
+
+  if (editing) {
     return (
-      <ClientForm
-        initial={editing || null}
+      <ClientEditor
+        client={editing === "new" ? null : editing}
         onBack={() => setEditing(null)}
         onSaved={() => {
           setEditing(null);
@@ -453,28 +1052,28 @@ function Clients() {
         <div>
           <div className="page-title">Клиенты</div>
           <div className="page-subtitle">
-            Компании и индивидуальные тарифы
+            Клиенты и их рабочие реквизиты
           </div>
         </div>
 
         <button
           className="btn btn-primary"
-          onClick={() => setEditing({})}
+          onClick={() => setEditing("new")}
         >
           + Добавить клиента
         </button>
       </div>
 
-      <div className="card card-pad">
-        <div style={{ marginBottom: 18 }}>
-          <input
-            className="input search"
-            placeholder="Поиск клиента…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+      <div className="card card-pad" style={{ marginBottom: 16 }}>
+        <input
+          className="input search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Поиск клиента..."
+        />
+      </div>
 
+      <div className="card">
         {loading ? (
           <div className="empty">Загрузка…</div>
         ) : filtered.length === 0 ? (
@@ -488,26 +1087,52 @@ function Clients() {
                   <th>ИНН</th>
                   <th>Контакт</th>
                   <th>Телефон</th>
-                  <th></th>
+                  <th>Статус</th>
                 </tr>
               </thead>
 
               <tbody>
                 {filtered.map((client) => (
-                  <tr key={client.id}>
+                  <tr
+                    key={client.id}
+                    className="clickable"
+                    onClick={() => setEditing(client)}
+                  >
                     <td>
-                      <strong>{client.name}</strong>
+                      <div style={{ fontWeight: 650 }}>
+                        {client.name}
+                      </div>
+
+                      {client.legal_name &&
+                        client.legal_name !== client.name && (
+                          <div
+                            style={{
+                              color: "var(--muted)",
+                              fontSize: 12,
+                              marginTop: 3,
+                            }}
+                          >
+                            {client.legal_name}
+                          </div>
+                        )}
                     </td>
+
                     <td>{client.inn || "—"}</td>
+
                     <td>{client.contact_name || "—"}</td>
+
                     <td>{client.phone || "—"}</td>
+
                     <td>
-                      <button
-                        className="btn btn-ghost"
-                        onClick={() => setEditing(client)}
+                      <span
+                        className={
+                          client.is_active
+                            ? "badge badge-active"
+                            : "badge badge-neutral"
+                        }
                       >
-                        Открыть
-                      </button>
+                        {client.is_active ? "Активен" : "Неактивен"}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -520,44 +1145,57 @@ function Clients() {
   );
 }
 
-function ClientForm({ initial, onBack, onSaved }) {
+function ClientEditor({ client, onBack, onSaved }) {
   const [form, setForm] = useState({
-    name: initial?.name || "",
-    legal_name: initial?.legal_name || "",
-    inn: initial?.inn || "",
-    contact_name: initial?.contact_name || "",
-    phone: initial?.phone || "",
-    email: initial?.email || "",
-    notes: initial?.notes || "",
+    name: client?.name || "",
+    legal_name: client?.legal_name || "",
+    inn: client?.inn || "",
+    contact_name: client?.contact_name || "",
+    phone: client?.phone || "",
+    email: client?.email || "",
+    notes: client?.notes || "",
+    is_active: client?.is_active ?? true,
   });
 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  function change(key, value) {
-    setForm((x) => ({ ...x, [key]: value }));
+  function update(field, value) {
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   }
 
   async function save(e) {
     e.preventDefault();
+
     setError("");
+
+    if (!form.name.trim()) {
+      setError("Укажите название клиента.");
+      return;
+    }
+
     setSaving(true);
 
     const payload = {
-      ...form,
       name: form.name.trim(),
+      legal_name: form.legal_name.trim() || null,
+      inn: form.inn.trim() || null,
+      contact_name: form.contact_name.trim() || null,
+      phone: form.phone.trim() || null,
+      email: form.email.trim() || null,
+      notes: form.notes.trim() || null,
+      is_active: form.is_active,
     };
 
-    let result;
-
-    if (initial?.id) {
-      result = await supabase
-        .from("clients")
-        .update(payload)
-        .eq("id", initial.id);
-    } else {
-      result = await supabase.from("clients").insert(payload);
-    }
+    const result = client
+      ? await supabase
+          .from("clients")
+          .update(payload)
+          .eq("id", client.id)
+      : await supabase.from("clients").insert(payload);
 
     if (result.error) {
       setError(result.error.message);
@@ -574,101 +1212,147 @@ function ClientForm({ initial, onBack, onSaved }) {
       <div className="page-head">
         <div>
           <div className="page-title">
-            {initial?.id ? "Карточка клиента" : "Новый клиент"}
+            {client ? "Карточка клиента" : "Новый клиент"}
+          </div>
+
+          <div className="page-subtitle">
+            Основная информация о клиенте
           </div>
         </div>
 
         <button className="btn btn-ghost" onClick={onBack}>
-          Назад
+          ← Назад
         </button>
       </div>
 
-      <form className="card card-pad form-card" onSubmit={save}>
+      <div className="card card-pad form-card">
         {error && <div className="error">{error}</div>}
 
-        <div className="grid grid-2">
-          <div className="field">
-            <label className="label">Название *</label>
-            <input
-              className="input"
-              value={form.name}
-              onChange={(e) => change("name", e.target.value)}
-              required
-            />
+        <form onSubmit={save}>
+          <div className="grid grid-2">
+            <div className="field">
+              <label className="label">Название *</label>
+
+              <input
+                className="input"
+                value={form.name}
+                onChange={(e) => update("name", e.target.value)}
+                placeholder="ООО Компания"
+                required
+              />
+            </div>
+
+            <div className="field">
+              <label className="label">Юридическое название</label>
+
+              <input
+                className="input"
+                value={form.legal_name}
+                onChange={(e) =>
+                  update("legal_name", e.target.value)
+                }
+              />
+            </div>
+
+            <div className="field">
+              <label className="label">ИНН</label>
+
+              <input
+                className="input"
+                value={form.inn}
+                onChange={(e) => update("inn", e.target.value)}
+              />
+            </div>
+
+            <div className="field">
+              <label className="label">Контактное лицо</label>
+
+              <input
+                className="input"
+                value={form.contact_name}
+                onChange={(e) =>
+                  update("contact_name", e.target.value)
+                }
+              />
+            </div>
+
+            <div className="field">
+              <label className="label">Телефон</label>
+
+              <input
+                className="input"
+                value={form.phone}
+                onChange={(e) => update("phone", e.target.value)}
+              />
+            </div>
+
+            <div className="field">
+              <label className="label">Email</label>
+
+              <input
+                className="input"
+                type="email"
+                value={form.email}
+                onChange={(e) => update("email", e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="field">
-            <label className="label">Юридическое название</label>
-            <input
-              className="input"
-              value={form.legal_name}
-              onChange={(e) => change("legal_name", e.target.value)}
+            <label className="label">Заметки</label>
+
+            <textarea
+              className="textarea"
+              value={form.notes}
+              onChange={(e) => update("notes", e.target.value)}
             />
           </div>
 
-          <div className="field">
-            <label className="label">ИНН</label>
-            <input
-              className="input"
-              value={form.inn}
-              onChange={(e) => change("inn", e.target.value)}
-            />
+          <div className="switch-row">
+            <div>
+              <div style={{ fontWeight: 650 }}>Активный клиент</div>
+
+              <div
+                style={{
+                  color: "var(--muted)",
+                  fontSize: 12,
+                  marginTop: 3,
+                }}
+              >
+                Неактивные клиенты сохраняются в истории.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className={`switch ${form.is_active ? "on" : ""}`}
+              onClick={() => update("is_active", !form.is_active)}
+            >
+              <span />
+            </button>
           </div>
 
-          <div className="field">
-            <label className="label">Контактное лицо</label>
-            <input
-              className="input"
-              value={form.contact_name}
-              onChange={(e) => change("contact_name", e.target.value)}
-            />
+          <div className="divider" />
+
+          <div className="actions">
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={saving}
+            >
+              {saving ? "Сохранение…" : "Сохранить"}
+            </button>
+
+            <button
+              className="btn btn-ghost"
+              type="button"
+              onClick={onBack}
+            >
+              Отмена
+            </button>
           </div>
-
-          <div className="field">
-            <label className="label">Телефон</label>
-            <input
-              className="input"
-              value={form.phone}
-              onChange={(e) => change("phone", e.target.value)}
-            />
-          </div>
-
-          <div className="field">
-            <label className="label">Email</label>
-            <input
-              className="input"
-              value={form.email}
-              onChange={(e) => change("email", e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="field">
-          <label className="label">Примечание</label>
-          <textarea
-            className="textarea"
-            value={form.notes}
-            onChange={(e) => change("notes", e.target.value)}
-          />
-        </div>
-
-        <div className="actions">
-          <button
-            className="btn btn-primary"
-            disabled={saving}
-          >
-            {saving ? "Сохранение…" : "Сохранить"}
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={onBack}
-          >
-            Отмена
-          </button>
-        </div>
-      </form>
+        </form>
+      </div>
     </>
   );
 }
@@ -676,46 +1360,56 @@ function ClientForm({ initial, onBack, onSaved }) {
 function Products() {
   const [products, setProducts] = useState([]);
   const [clients, setClients] = useState([]);
-  const [editing, setEditing] = useState(null);
   const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
+    setLoading(true);
+
     const [{ data: productsData }, { data: clientsData }] =
       await Promise.all([
         supabase
           .from("products")
-          .select("*")
+          .select("*, clients(name)")
           .order("name"),
 
         supabase
           .from("clients")
           .select("id,name")
+          .eq("is_active", true)
           .order("name"),
       ]);
 
     setProducts(productsData || []);
     setClients(clientsData || []);
+    setLoading(false);
   }
 
   useEffect(() => {
     load();
   }, []);
 
-  const clientMap = useMemo(
-    () => Object.fromEntries(clients.map((c) => [c.id, c.name])),
-    [clients]
-  );
+  const filtered = products.filter((product) => {
+    const q = search.toLowerCase().trim();
 
-  const filtered = products.filter((p) =>
-    `${p.name} ${p.sku || ""} ${clientMap[p.client_id] || ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
+    if (!q) return true;
+
+    return [
+      product.name,
+      product.sku,
+      product.clients?.name,
+    ]
+      .filter(Boolean)
+      .some((value) =>
+        String(value).toLowerCase().includes(q)
+      );
+  });
 
   if (editing) {
     return (
-      <ProductForm
-        initial={editing === "new" ? null : editing}
+      <ProductEditor
+        product={editing === "new" ? null : editing}
         clients={clients}
         onBack={() => setEditing(null)}
         onSaved={() => {
@@ -731,8 +1425,9 @@ function Products() {
       <div className="page-head">
         <div>
           <div className="page-title">Товары</div>
+
           <div className="page-subtitle">
-            Справочник товаров клиентов
+            У каждого товара своя цена обработки
           </div>
         </div>
 
@@ -744,57 +1439,68 @@ function Products() {
         </button>
       </div>
 
-      <div className="card card-pad">
-        <div style={{ marginBottom: 18 }}>
-          <input
-            className="input search"
-            placeholder="Поиск товара или клиента…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+      <div className="card card-pad" style={{ marginBottom: 16 }}>
+        <input
+          className="input search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Поиск товара, SKU или клиента..."
+        />
+      </div>
 
-        {filtered.length === 0 ? (
+      <div className="card">
+        {loading ? (
+          <div className="empty">Загрузка…</div>
+        ) : filtered.length === 0 ? (
           <div className="empty">Товары не найдены</div>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Клиент</th>
                   <th>Товар</th>
-                  <th>Размер</th>
-                  <th>Вес</th>
                   <th>SKU</th>
-                  <th></th>
+                  <th>Клиент</th>
+                  <th>Цена</th>
+                  <th>Статус</th>
                 </tr>
               </thead>
 
               <tbody>
-                {filtered.map((p) => (
-                  <tr key={p.id}>
-                    <td>{clientMap[p.client_id] || "—"}</td>
+                {filtered.map((product) => (
+                  <tr
+                    key={product.id}
+                    className="clickable"
+                    onClick={() => setEditing(product)}
+                  >
                     <td>
-                      <strong>{p.name}</strong>
+                      <div style={{ fontWeight: 650 }}>
+                        {product.name}
+                      </div>
                     </td>
+
+                    <td>{product.sku || "—"}</td>
+
+                    <td>{product.clients?.name || "—"}</td>
+
                     <td>
-                      {p.size_type === "small"
-                        ? "Маленький"
-                        : p.size_type === "medium"
-                        ? "Средний"
-                        : p.size_type === "large"
-                        ? "Крупный"
-                        : "—"}
+                      <span className="price-big">
+                        {product.current_price != null
+                          ? money(product.current_price)
+                          : "—"}
+                      </span>
                     </td>
-                    <td>{p.weight_kg || 0} кг</td>
-                    <td>{p.sku || "—"}</td>
+
                     <td>
-                      <button
-                        className="btn btn-ghost"
-                        onClick={() => setEditing(p)}
+                      <span
+                        className={
+                          product.is_active
+                            ? "badge badge-active"
+                            : "badge badge-neutral"
+                        }
                       >
-                        Открыть
-                      </button>
+                        {product.is_active ? "Активен" : "Неактивен"}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -807,64 +1513,895 @@ function Products() {
   );
 }
 
-function ProductForm({ initial, clients, onBack, onSaved }) {
+function ProductEditor({ product, clients, onBack, onSaved }) {
   const [form, setForm] = useState({
-    client_id: initial?.client_id || "",
-    name: initial?.name || "",
-    sku: initial?.sku || "",
-    size_type: initial?.size_type || "small",
-    length_cm: initial?.length_cm || "",
-    width_cm: initial?.width_cm || "",
-    height_cm: initial?.height_cm || "",
-    weight_kg: initial?.weight_kg ?? 0,
-    notes: initial?.notes || "",
+    client_id: product?.client_id || "",
+    sku: product?.sku || "",
+    name: product?.name || "",
+    notes: product?.notes || "",
+    is_active: product?.is_active ?? true,
+    price: product?.current_price ?? "",
   });
 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  function change(key, value) {
-    setForm((x) => ({ ...x, [key]: value }));
+  function update(field, value) {
+    setForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   }
 
   async function save(e) {
     e.preventDefault();
+
     setError("");
+
+    if (!form.client_id) {
+      setError("Выберите клиента.");
+      return;
+    }
+
+    if (!form.name.trim()) {
+      setError("Укажите наименование товара.");
+      return;
+    }
+
+    if (form.price === "" || Number(form.price) < 0) {
+      setError("Укажите корректную цену товара.");
+      return;
+    }
+
     setSaving(true);
 
     let sku = form.sku.trim();
 
     if (!sku) {
-      sku =
-        "AUTO-" +
-        crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase();
+      sku = `SKU-${Date.now()}`;
     }
 
     const payload = {
       client_id: form.client_id,
-      name: form.name.trim(),
       sku,
-      size_type: form.size_type,
-      length_cm: form.length_cm === "" ? null : Number(form.length_cm),
-      width_cm: form.width_cm === "" ? null : Number(form.width_cm),
-      height_cm: form.height_cm === "" ? null : Number(form.height_cm),
-      weight_kg:
-        form.weight_kg === "" ? 0 : Number(form.weight_kg),
-      notes: form.notes,
+      name: form.name.trim(),
+      notes: form.notes.trim() || null,
+      is_active: form.is_active,
     };
 
-    let result;
+    const result = product
+      ? await supabase
+          .from("products")
+          .update(payload)
+          .eq("id", product.id)
+      : await supabase.from("products").insert(payload);
 
-    if (initial?.id) {
-      result = await supabase
-        .from("products")
-        .update(payload)
-        .eq("id", initial.id);
-    } else {
-      result = await supabase
-        .from("products")
-        .insert(payload);
+    if (result.error) {
+      setError(result.error.message);
+      setSaving(false);
+      return;
     }
+
+    const productId = product?.id;
+
+    let savedProductId = productId;
+
+    if (!productId) {
+      const { data } = await supabase
+        .from("products")
+        .select("id")
+        .eq("client_id", form.client_id)
+        .eq("sku", sku)
+        .single();
+
+      savedProductId = data?.id;
+    }
+
+    if (savedProductId) {
+      const { data: existingTariff } = await supabase
+        .from("service_tariffs")
+        .select("id")
+        .eq("product_id", savedProductId)
+        .eq("service_type", "shipment")
+        .is("client_id", null)
+        .is("effective_to", null)
+        .maybeSingle();
+
+      const tariffPayload = {
+        client_id: null,
+        product_id: savedProductId,
+        service_type: "shipment",
+        price_rub: Number(form.price),
+        enabled: true,
+        effective_from: today(),
+        effective_to: null,
+      };
+
+      if (existingTariff) {
+        await supabase
+          .from("service_tariffs")
+          .update({
+            price_rub: Number(form.price),
+            enabled: true,
+          })
+          .eq("id", existingTariff.id);
+      } else {
+        await supabase
+          .from("service_tariffs")
+          .insert(tariffPayload);
+      }
+    }
+
+    setSaving(false);
+    onSaved();
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <div className="page-title">
+            {product ? "Карточка товара" : "Новый товар"}
+          </div>
+
+          <div className="page-subtitle">
+            Наименование товара и его цена за единицу
+          </div>
+        </div>
+
+        <button className="btn btn-ghost" onClick={onBack}>
+          ← Назад
+        </button>
+      </div>
+
+      <div className="card card-pad form-card">
+        {error && <div className="error">{error}</div>}
+
+        <form onSubmit={save}>
+          <div className="field">
+            <label className="label">Клиент *</label>
+
+            <select
+              className="select"
+              value={form.client_id}
+              onChange={(e) =>
+                update("client_id", e.target.value)
+              }
+              required
+            >
+              <option value="">Выберите клиента</option>
+
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-2">
+            <div className="field">
+              <label className="label">Наименование товара *</label>
+
+              <input
+                className="input"
+                value={form.name}
+                onChange={(e) => update("name", e.target.value)}
+                placeholder="Например: Футболка чёрная"
+                required
+              />
+            </div>
+
+            <div className="field">
+              <label className="label">
+                Цена обработки, ₽/шт. *
+              </label>
+
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.price}
+                onChange={(e) => update("price", e.target.value)}
+                placeholder="30.00"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="field">
+            <label className="label">
+              SKU — необязательно
+            </label>
+
+            <input
+              className="input"
+              value={form.sku}
+              onChange={(e) => update("sku", e.target.value)}
+              placeholder="Если оставить пустым, SKU создастся автоматически"
+            />
+          </div>
+
+          <div className="field">
+            <label className="label">Заметки</label>
+
+            <textarea
+              className="textarea"
+              value={form.notes}
+              onChange={(e) => update("notes", e.target.value)}
+            />
+          </div>
+
+          <div className="switch-row">
+            <div>
+              <div style={{ fontWeight: 650 }}>Активный товар</div>
+
+              <div
+                style={{
+                  color: "var(--muted)",
+                  fontSize: 12,
+                  marginTop: 3,
+                }}
+              >
+                Неактивный товар не предлагается для новых операций.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className={`switch ${form.is_active ? "on" : ""}`}
+              onClick={() =>
+                update("is_active", !form.is_active)
+              }
+            >
+              <span />
+            </button>
+          </div>
+
+          <div className="divider" />
+
+          <div className="actions">
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={saving}
+            >
+              {saving ? "Сохранение…" : "Сохранить товар"}
+            </button>
+
+            <button
+              className="btn btn-ghost"
+              type="button"
+              onClick={onBack}
+            >
+              Отмена
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
+  );
+}
+
+function Tariffs() {
+  const [products, setProducts] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [tariffs, setTariffs] = useState([]);
+  const [receiving, setReceiving] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState(null);
+
+  async function load() {
+    setLoading(true);
+
+    const [
+      { data: productsData },
+      { data: clientsData },
+      { data: tariffsData },
+      { data: receivingData },
+    ] = await Promise.all([
+      supabase
+        .from("products")
+        .select("id,name,sku,client_id,clients(name)")
+        .eq("is_active", true)
+        .order("name"),
+
+      supabase
+        .from("clients")
+        .select("id,name")
+        .eq("is_active", true)
+        .order("name"),
+
+      supabase
+        .from("service_tariffs")
+        .select("*")
+        .eq("service_type", "shipment")
+        .eq("enabled", true)
+        .is("effective_to", null),
+
+      supabase
+        .from("service_tariffs")
+        .select("*")
+        .eq("service_type", "receiving")
+        .is("product_id", null)
+        .is("effective_to", null)
+        .order("created_at", { ascending: false })
+        .limit(1),
+    ]);
+
+    setProducts(productsData || []);
+    setClients(clientsData || []);
+    setTariffs(tariffsData || []);
+    setReceiving(receivingData?.[0] || null);
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const tariffMap = useMemo(() => {
+    const map = {};
+
+    for (const tariff of tariffs) {
+      if (tariff.product_id) {
+        map[tariff.product_id] = tariff;
+      }
+    }
+
+    return map;
+  }, [tariffs]);
+
+  async function saveProductTariff(product, value) {
+    const price = Number(value);
+
+    if (!Number.isFinite(price) || price < 0) {
+      return;
+    }
+
+    setSavingId(product.id);
+
+    const existing = tariffMap[product.id];
+
+    if (existing) {
+      await supabase
+        .from("service_tariffs")
+        .update({
+          price_rub: price,
+          enabled: true,
+        })
+        .eq("id", existing.id);
+    } else {
+      await supabase.from("service_tariffs").insert({
+        client_id: null,
+        product_id: product.id,
+        service_type: "shipment",
+        price_rub: price,
+        enabled: true,
+        effective_from: today(),
+        effective_to: null,
+      });
+    }
+
+    await load();
+
+    setSavingId(null);
+  }
+
+  async function saveReceiving(value, enabled) {
+    const price = Number(value);
+
+    if (!Number.isFinite(price) || price < 0) {
+      return;
+    }
+
+    if (receiving) {
+      await supabase
+        .from("service_tariffs")
+        .update({
+          price_rub: price,
+          enabled,
+        })
+        .eq("id", receiving.id);
+    } else {
+      await supabase.from("service_tariffs").insert({
+        client_id: null,
+        product_id: null,
+        service_type: "receiving",
+        price_rub: price,
+        enabled,
+        effective_from: today(),
+        effective_to: null,
+      });
+    }
+
+    await load();
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <div className="page-title">Тарифы</div>
+
+          <div className="page-subtitle">
+            Цена задаётся непосредственно для каждого товара
+          </div>
+        </div>
+      </div>
+
+      <div className="card card-pad" style={{ marginBottom: 18 }}>
+        <div style={{ fontWeight: 650, marginBottom: 7 }}>
+          Как работает цена
+        </div>
+
+        <div className="notice">
+          Для каждого товара задаётся собственная стоимость обработки
+          за одну штуку. Эта цена автоматически используется при создании
+          операции.
+        </div>
+      </div>
+
+      <div className="card card-pad" style={{ marginBottom: 18 }}>
+        <div className="tariff-title">Приёмка товара</div>
+
+        <div className="grid grid-2">
+          <div className="field">
+            <label className="label">Цена приёмки, ₽/шт.</label>
+
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={receiving?.price_rub ?? 5}
+              key={receiving?.id || "new-receiving"}
+              id="receiving-price"
+            />
+          </div>
+
+          <div className="switch-row">
+            <div>
+              <div style={{ fontWeight: 650 }}>Услуга включена</div>
+
+              <div
+                style={{
+                  color: "var(--muted)",
+                  fontSize: 12,
+                  marginTop: 3,
+                }}
+              >
+                Можно включать или отключать приёмку.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className={`switch ${
+                receiving?.enabled ?? true ? "on" : ""
+              }`}
+              onClick={async () => {
+                const price =
+                  document.getElementById("receiving-price")?.value ||
+                  receiving?.price_rub ||
+                  5;
+
+                await saveReceiving(
+                  price,
+                  !(receiving?.enabled ?? true)
+                );
+              }}
+            >
+              <span />
+            </button>
+          </div>
+        </div>
+
+        <button
+          className="btn btn-primary"
+          onClick={async () => {
+            const value =
+              document.getElementById("receiving-price")?.value || 5;
+
+            await saveReceiving(
+              value,
+              receiving?.enabled ?? true
+            );
+          }}
+        >
+          Сохранить приёмку
+        </button>
+      </div>
+
+      <div className="card">
+        {loading ? (
+          <div className="empty">Загрузка…</div>
+        ) : products.length === 0 ? (
+          <div className="empty">
+            Сначала добавьте товары.
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Наименование товара</th>
+                  <th>Клиент</th>
+                  <th>Цена, ₽/шт.</th>
+                  <th />
+                </tr>
+              </thead>
+
+              <tbody>
+                {products.map((product) => {
+                  const tariff = tariffMap[product.id];
+
+                  return (
+                    <TariffRow
+                      key={product.id}
+                      product={product}
+                      tariff={tariff}
+                      saving={savingId === product.id}
+                      onSave={saveProductTariff}
+                    />
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function TariffRow({ product, tariff, saving, onSave }) {
+  const [value, setValue] = useState(
+    tariff?.price_rub ?? ""
+  );
+
+  useEffect(() => {
+    setValue(tariff?.price_rub ?? "");
+  }, [tariff?.price_rub]);
+
+  return (
+    <tr>
+      <td>
+        <div style={{ fontWeight: 650 }}>
+          {product.name}
+        </div>
+
+        {product.sku && (
+          <div
+            style={{
+              color: "var(--muted)",
+              fontSize: 11,
+              marginTop: 3,
+            }}
+          >
+            {product.sku}
+          </div>
+        )}
+      </td>
+
+      <td>{product.clients?.name || "—"}</td>
+
+      <td style={{ width: 180 }}>
+        <input
+          className="input"
+          type="number"
+          min="0"
+          step="0.01"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Цена"
+        />
+      </td>
+
+      <td style={{ width: 130 }}>
+        <button
+          className="btn btn-primary"
+          disabled={saving || value === ""}
+          onClick={() => onSave(product, value)}
+        >
+          {saving ? "…" : "Сохранить"}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+function Shipments() {
+  const [shipments, setShipments] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [editing, setEditing] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+
+    const [
+      { data: shipmentsData },
+      { data: clientsData },
+      { data: productsData },
+    ] = await Promise.all([
+      supabase
+        .from("shipments")
+        .select(
+          "*, clients(name), products(name,sku)"
+        )
+        .order("shipment_date", { ascending: false })
+        .order("created_at", { ascending: false }),
+
+      supabase
+        .from("clients")
+        .select("id,name")
+        .eq("is_active", true)
+        .order("name"),
+
+      supabase
+        .from("products")
+        .select("id,name,sku,client_id")
+        .eq("is_active", true)
+        .order("name"),
+    ]);
+
+    setShipments(shipmentsData || []);
+    setClients(clientsData || []);
+    setProducts(productsData || []);
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  if (editing) {
+    return (
+      <ShipmentEditor
+        clients={clients}
+        products={products}
+        onBack={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null);
+          load();
+        }}
+      />
+    );
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <div className="page-title">Операции</div>
+
+          <div className="page-subtitle">
+            Отправления и начисления по товарам
+          </div>
+        </div>
+
+        <button
+          className="btn btn-primary"
+          onClick={() => setEditing("new")}
+        >
+          + Новая операция
+        </button>
+      </div>
+
+      <div className="card">
+        {loading ? (
+          <div className="empty">Загрузка…</div>
+        ) : shipments.length === 0 ? (
+          <div className="empty">
+            Операций пока нет.
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Клиент</th>
+                  <th>Товар</th>
+                  <th>Количество</th>
+                  <th>Цена</th>
+                  <th>Сумма</th>
+                  <th>Статус</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {shipments.map((shipment) => (
+                  <tr key={shipment.id}>
+                    <td>{dateRu(shipment.shipment_date)}</td>
+
+                    <td>{shipment.clients?.name || "—"}</td>
+
+                    <td>
+                      {shipment.products?.name || "—"}
+                    </td>
+
+                    <td>{shipment.quantity}</td>
+
+                    <td>
+                      {money(shipment.unit_price_rub)}
+                    </td>
+
+                    <td>
+                      <strong>
+                        {money(shipment.total_rub)}
+                      </strong>
+                    </td>
+
+                    <td>
+                      <span
+                        className={
+                          shipment.status === "active"
+                            ? "badge badge-active"
+                            : "badge badge-cancelled"
+                        }
+                      >
+                        {shipment.status === "active"
+                          ? "Активно"
+                          : "Отменено"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function ShipmentEditor({ clients, products, onBack, onSaved }) {
+  const [clientId, setClientId] = useState("");
+  const [productId, setProductId] = useState("");
+  const [date, setDate] = useState(today());
+  const [quantity, setQuantity] = useState(1);
+  const [weight, setWeight] = useState("");
+  const [receivingEnabled, setReceivingEnabled] = useState(false);
+  const [note, setNote] = useState("");
+  const [price, setPrice] = useState(null);
+  const [receivingPrice, setReceivingPrice] = useState(5);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const clientProducts = products.filter(
+    (product) => product.client_id === clientId
+  );
+
+  useEffect(() => {
+    async function loadTariff() {
+      setPrice(null);
+
+      if (!productId) return;
+
+      const { data } = await supabase
+        .from("service_tariffs")
+        .select("price_rub")
+        .eq("product_id", productId)
+        .eq("service_type", "shipment")
+        .eq("enabled", true)
+        .is("effective_to", null)
+        .order("effective_from", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data) {
+        setPrice(Number(data.price_rub));
+      } else {
+        setPrice(0);
+      }
+    }
+
+    loadTariff();
+  }, [productId]);
+
+  useEffect(() => {
+    async function loadReceiving() {
+      const { data } = await supabase
+        .from("service_tariffs")
+        .select("price_rub,enabled")
+        .eq("service_type", "receiving")
+        .is("product_id", null)
+        .is("client_id", null)
+        .is("effective_to", null)
+        .order("effective_from", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data) {
+        setReceivingPrice(Number(data.price_rub || 5));
+      }
+    }
+
+    loadReceiving();
+  }, []);
+
+  const baseTotal =
+    Number(price || 0) * Number(quantity || 0);
+
+  const receivingTotal = receivingEnabled
+    ? receivingPrice * Number(quantity || 0)
+    : 0;
+
+  const total = baseTotal + receivingTotal;
+
+  async function save(e) {
+    e.preventDefault();
+
+    setError("");
+
+    if (!clientId) {
+      setError("Выберите клиента.");
+      return;
+    }
+
+    if (!productId) {
+      setError("Выберите товар.");
+      return;
+    }
+
+    if (!quantity || Number(quantity) <= 0) {
+      setError("Количество должно быть больше нуля.");
+      return;
+    }
+
+    if (price == null) {
+      setError("Не удалось определить цену товара.");
+      return;
+    }
+
+    if (Number(price) <= 0) {
+      setError(
+        "Для выбранного товара сначала задайте цену в разделе «Тарифы»."
+      );
+      return;
+    }
+
+    setSaving(true);
+
+    const selectedProduct = products.find(
+      (item) => item.id === productId
+    );
+
+    const details = [
+      `Цена товара: ${money(price)}/шт.`,
+      `Сумма товара: ${money(baseTotal)}`,
+      receivingEnabled
+        ? `Приёмка: ${money(receivingPrice)}/шт., всего ${money(
+            receivingTotal
+          )}`
+        : "Приёмка: нет",
+      weight
+        ? `Вес: ${Number(weight).toLocaleString("ru-RU")} кг`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    const result = await supabase.from("shipments").insert({
+      client_id: clientId,
+      product_id: productId,
+      shipment_date: date,
+      quantity: Number(quantity),
+      tariff_type: "shipment",
+      unit_price_rub: Number(price),
+      total_rub: Number(total.toFixed(2)),
+      status: "active",
+      note: [details, note.trim()]
+        .filter(Boolean)
+        .join("\n"),
+    });
 
     if (result.error) {
       setError(result.error.message);
@@ -880,813 +2417,89 @@ function ProductForm({ initial, clients, onBack, onSaved }) {
     <>
       <div className="page-head">
         <div>
-          <div className="page-title">
-            {initial ? "Карточка товара" : "Новый товар"}
-          </div>
+          <div className="page-title">Новая операция</div>
+
           <div className="page-subtitle">
-            SKU можно не заполнять — SORTEX создаст технический код
-            автоматически.
+            Стоимость рассчитывается автоматически по цене товара
           </div>
         </div>
 
         <button className="btn btn-ghost" onClick={onBack}>
-          Назад
+          ← Назад
         </button>
       </div>
 
-      <form className="card card-pad form-card" onSubmit={save}>
+      <div className="card card-pad form-card">
         {error && <div className="error">{error}</div>}
 
-        <div className="field">
-          <label className="label">Клиент *</label>
-
-          <select
-            className="select"
-            value={form.client_id}
-            onChange={(e) => change("client_id", e.target.value)}
-            required
-          >
-            <option value="">Выберите клиента</option>
-
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-2">
-          <div className="field">
-            <label className="label">Название товара *</label>
-            <input
-              className="input"
-              value={form.name}
-              onChange={(e) => change("name", e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="field">
-            <label className="label">SKU</label>
-            <input
-              className="input"
-              value={form.sku}
-              onChange={(e) => change("sku", e.target.value)}
-              placeholder="Необязательно"
-            />
-          </div>
-
-          <div className="field">
-            <label className="label">Размер тарифа *</label>
-
-            <select
-              className="select"
-              value={form.size_type}
-              onChange={(e) => change("size_type", e.target.value)}
-            >
-              <option value="small">Маленький — 30 ₽</option>
-              <option value="medium">Средний — 40 ₽</option>
-              <option value="large">Крупный — 55 ₽</option>
-            </select>
-          </div>
-
-          <div className="field">
-            <label className="label">Вес одного товара, кг</label>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.001"
-              value={form.weight_kg}
-              onChange={(e) =>
-                change("weight_kg", e.target.value)
-              }
-            />
-          </div>
-
-          <div className="field">
-            <label className="label">Длина, см</label>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.1"
-              value={form.length_cm}
-              onChange={(e) =>
-                change("length_cm", e.target.value)
-              }
-            />
-          </div>
-
-          <div className="field">
-            <label className="label">Ширина, см</label>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.1"
-              value={form.width_cm}
-              onChange={(e) =>
-                change("width_cm", e.target.value)
-              }
-            />
-          </div>
-
-          <div className="field">
-            <label className="label">Высота, см</label>
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.1"
-              value={form.height_cm}
-              onChange={(e) =>
-                change("height_cm", e.target.value)
-              }
-            />
-          </div>
-        </div>
-
-        <div className="field">
-          <label className="label">Примечание</label>
-          <textarea
-            className="textarea"
-            value={form.notes}
-            onChange={(e) => change("notes", e.target.value)}
-          />
-        </div>
-
-        <div className="actions">
-          <button className="btn btn-primary" disabled={saving}>
-            {saving ? "Сохранение…" : "Сохранить товар"}
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={onBack}
-          >
-            Отмена
-          </button>
-        </div>
-      </form>
-    </>
-  );
-}
-
-function Tariffs() {
-  const [clients, setClients] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [selectedClient, setSelectedClient] = useState("");
-  const [selectedProduct, setSelectedProduct] = useState("");
-  const [tariffs, setTariffs] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  async function loadBase() {
-    const [{ data: clientsData }, { data: productsData }] =
-      await Promise.all([
-        supabase
-          .from("clients")
-          .select("id,name")
-          .eq("is_active", true)
-          .order("name"),
-
-        supabase
-          .from("products")
-          .select("id,name,client_id,size_type,weight_kg")
-          .eq("is_active", true)
-          .order("name"),
-      ]);
-
-    setClients(clientsData || []);
-    setProducts(productsData || []);
-  }
-
-  useEffect(() => {
-    loadBase();
-  }, []);
-
-  useEffect(() => {
-    loadTariffs();
-  }, [selectedClient, selectedProduct]);
-
-  async function loadTariffs() {
-    setLoading(true);
-
-    let query = supabase
-      .from("service_tariffs")
-      .select("*")
-      .order("service_type")
-      .order("effective_from", { ascending: false });
-
-    if (selectedClient) {
-      query = query.eq("client_id", selectedClient);
-    }
-
-    if (selectedProduct) {
-      query = query.eq("product_id", selectedProduct);
-    }
-
-    const { data } = await query;
-
-    setTariffs(data || []);
-    setLoading(false);
-  }
-
-  const filteredProducts = selectedClient
-    ? products.filter((p) => p.client_id === selectedClient)
-    : products;
-
-  async function saveTariff(type, values) {
-    const payload = {
-      client_id: selectedClient || null,
-      product_id: selectedProduct || null,
-      service_type: type,
-      price_rub: Number(values.price_rub || 0),
-      enabled: values.enabled,
-      included_weight_kg: Number(
-        values.included_weight_kg ?? (type === "shipment" ? 1 : 0)
-      ),
-      extra_kg_price_rub: Number(
-        values.extra_kg_price_rub ?? (type === "shipment" ? 8 : 0)
-      ),
-      effective_from: today(),
-    };
-
-    const { error } = await supabase
-      .from("service_tariffs")
-      .insert(payload);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    loadTariffs();
-  }
-
-  const shipmentTariffs = tariffs.filter(
-    (x) => x.service_type === "shipment"
-  );
-
-  const receivingTariffs = tariffs.filter(
-    (x) => x.service_type === "receiving"
-  );
-
-  const currentShipment = shipmentTariffs[0];
-  const currentReceiving = receivingTariffs[0];
-
-  const selectedProductObj = products.find(
-    (p) => p.id === selectedProduct
-  );
-
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <div className="page-title">Тарифы</div>
-          <div className="page-subtitle">
-            Индивидуальные цены клиентов и товаров
-          </div>
-        </div>
-      </div>
-
-      <div className="card card-pad">
-        <div className="grid grid-2">
-          <div className="field">
-            <label className="label">Клиент</label>
-
-            <select
-              className="select"
-              value={selectedClient}
-              onChange={(e) => {
-                setSelectedClient(e.target.value);
-                setSelectedProduct("");
-              }}
-            >
-              <option value="">
-                Все клиенты / системный тариф
-              </option>
-
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="field">
-            <label className="label">Товар</label>
-
-            <select
-              className="select"
-              value={selectedProduct}
-              onChange={(e) =>
-                setSelectedProduct(e.target.value)
-              }
-            >
-              <option value="">
-                Тариф клиента целиком
-              </option>
-
-              {filteredProducts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="notice">
-          {selectedProductObj
-            ? `Настройка тарифа конкретного товара: ${selectedProductObj.name}`
-            : selectedClient
-            ? "Настройка общего тарифа выбранного клиента."
-            : "Без выбранного клиента отображаются системные тарифы и общие настройки."}
-        </div>
-      </div>
-
-      <div style={{ marginTop: 18 }} className="grid grid-2">
-        <ShipmentTariffEditor
-          existing={currentShipment}
-          onSave={(values) => saveTariff("shipment", values)}
-          loading={loading}
-        />
-
-        <ReceivingTariffEditor
-          existing={currentReceiving}
-          onSave={(values) => saveTariff("receiving", values)}
-          loading={loading}
-        />
-      </div>
-
-      {tariffs.length > 0 && (
-        <div style={{ marginTop: 18 }} className="card card-pad">
-          <div style={{ fontWeight: 650, marginBottom: 15 }}>
-            История тарифов выбранного уровня
-          </div>
-
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Услуга</th>
-                  <th>Цена</th>
-                  <th>Первый кг</th>
-                  <th>Доп. кг</th>
-                  <th>Статус</th>
-                  <th>Дата</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {tariffs.map((t) => (
-                  <tr key={t.id}>
-                    <td>
-                      {t.service_type === "shipment"
-                        ? "Обработка товара"
-                        : "Приёмка товара"}
-                    </td>
-
-                    <td>{money(t.price_rub)}</td>
-
-                    <td>
-                      {t.service_type === "shipment"
-                        ? `${t.included_weight_kg ?? 1} кг`
-                        : "—"}
-                    </td>
-
-                    <td>
-                      {t.service_type === "shipment"
-                        ? `${money(t.extra_kg_price_rub)}/кг`
-                        : "—"}
-                    </td>
-
-                    <td>
-                      {t.enabled ? (
-                        <span className="badge badge-active">
-                          Включён
-                        </span>
-                      ) : (
-                        <span className="badge badge-neutral">
-                          Выключен
-                        </span>
-                      )}
-                    </td>
-
-                    <td>{dateRu(t.effective_from)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function ShipmentTariffEditor({ existing, onSave, loading }) {
-  const [price, setPrice] = useState(existing?.price_rub ?? 30);
-  const [extra, setExtra] = useState(
-    existing?.extra_kg_price_rub ?? 8
-  );
-  const [included, setIncluded] = useState(
-    existing?.included_weight_kg ?? 1
-  );
-
-  useEffect(() => {
-    setPrice(existing?.price_rub ?? 30);
-    setExtra(existing?.extra_kg_price_rub ?? 8);
-    setIncluded(existing?.included_weight_kg ?? 1);
-  }, [existing]);
-
-  return (
-    <div className="card card-pad">
-      <div className="tariff-title">
-        Обработка товара
-      </div>
-
-      <div className="notice" style={{ marginBottom: 18 }}>
-        Базовая стоимость зависит от размера товара. Для конкретного
-        товара или клиента эту цену можно переопределить.
-      </div>
-
-      <div className="field">
-        <label className="label">Базовый тариф, ₽/шт</label>
-
-        <input
-          className="input"
-          type="number"
-          min="0"
-          step="0.01"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-        />
-      </div>
-
-      <div className="field">
-        <label className="label">
-          Включённый вес, кг
-        </label>
-
-        <input
-          className="input"
-          type="number"
-          min="0"
-          step="0.001"
-          value={included}
-          onChange={(e) => setIncluded(e.target.value)}
-        />
-      </div>
-
-      <div className="field">
-        <label className="label">
-          Доп. кг, ₽/кг
-        </label>
-
-        <input
-          className="input"
-          type="number"
-          min="0"
-          step="0.01"
-          value={extra}
-          onChange={(e) => setExtra(e.target.value)}
-        />
-      </div>
-
-      <div className="notice" style={{ marginBottom: 16 }}>
-        Первый {included || 0} кг включён. Всё сверх него считается
-        по {extra || 0} ₽/кг.
-      </div>
-
-      <button
-        className="btn btn-primary"
-        disabled={loading}
-        onClick={() =>
-          onSave({
-            price_rub: price,
-            included_weight_kg: included,
-            extra_kg_price_rub: extra,
-            enabled: true,
-          })
-        }
-      >
-        Сохранить тариф
-      </button>
-    </div>
-  );
-}
-
-function ReceivingTariffEditor({ existing, onSave, loading }) {
-  const [price, setPrice] = useState(existing?.price_rub ?? 5);
-  const [enabled, setEnabled] = useState(
-    existing?.enabled ?? true
-  );
-
-  useEffect(() => {
-    setPrice(existing?.price_rub ?? 5);
-    setEnabled(existing?.enabled ?? true);
-  }, [existing]);
-
-  return (
-    <div className="card card-pad">
-      <div className="tariff-title">
-        Приёмка товара
-      </div>
-
-      <div className="switch-row">
-        <div>
-          <strong>Услуга включена</strong>
-          <div className="page-subtitle">
-            Можно полностью отключить приёмку для выбранного уровня.
-          </div>
-        </div>
-
-        <button
-          className={`switch ${enabled ? "on" : ""}`}
-          onClick={() => setEnabled(!enabled)}
-          type="button"
-        >
-          <span />
-        </button>
-      </div>
-
-      <div className="field">
-        <label className="label">Стоимость, ₽/шт</label>
-
-        <input
-          className="input"
-          type="number"
-          min="0"
-          step="0.01"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-        />
-      </div>
-
-      <div className="notice" style={{ marginBottom: 16 }}>
-        Стандартная цена приёмки — 5 ₽/шт. Для клиента или товара её
-        можно изменить.
-      </div>
-
-      <button
-        className="btn btn-primary"
-        disabled={loading}
-        onClick={() =>
-          onSave({
-            price_rub: price,
-            enabled,
-            included_weight_kg: 0,
-            extra_kg_price_rub: 0,
-          })
-        }
-      >
-        Сохранить приёмку
-      </button>
-    </div>
-  );
-}
-
-function Shipments() {
-  const [clients, setClients] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [clientId, setClientId] = useState("");
-  const [productId, setProductId] = useState("");
-  const [quantity, setQuantity] = useState(1);
-  const [receiving, setReceiving] = useState(false);
-  const [unitPrice, setUnitPrice] = useState(0);
-  const [extraKgPrice, setExtraKgPrice] = useState(8);
-  const [includedKg, setIncludedKg] = useState(1);
-  const [operationWeight, setOperationWeight] = useState(0);
-  const [receivingPrice, setReceivingPrice] = useState(5);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    async function load() {
-      const [{ data: c }, { data: p }] = await Promise.all([
-        supabase
-          .from("clients")
-          .select("id,name")
-          .eq("is_active", true)
-          .order("name"),
-
-        supabase
-          .from("products")
-          .select(
-            "id,name,client_id,size_type,weight_kg"
-          )
-          .eq("is_active", true)
-          .order("name"),
-      ]);
-
-      setClients(c || []);
-      setProducts(p || []);
-    }
-
-    load();
-  }, []);
-
-  const clientProducts = products.filter(
-    (p) => p.client_id === clientId
-  );
-
-  useEffect(() => {
-    if (!productId) {
-      setUnitPrice(0);
-      setOperationWeight(0);
-      return;
-    }
-
-    const product = products.find((p) => p.id === productId);
-
-    if (!product) return;
-
-    setOperationWeight(
-      Number(product.weight_kg || 0) *
-        Number(quantity || 0)
-    );
-
-    loadTariff(product);
-  }, [productId, clientId, quantity, products]);
-
-  async function loadTariff(product) {
-    if (!clientId || !product) return;
-
-    const { data, error } = await supabase.rpc(
-      "get_effective_shipment_tariff_v2",
-      {
-        p_client_id: clientId,
-        p_product_id: product.id,
-        p_tariff_type: product.size_type,
-        p_date: today(),
-      }
-    );
-
-    if (!error && data?.[0]) {
-      setUnitPrice(Number(data[0].price_rub || 0));
-      setExtraKgPrice(
-        Number(data[0].extra_kg_price_rub ?? 8)
-      );
-      setIncludedKg(
-        Number(data[0].included_weight_kg ?? 1)
-      );
-    }
-
-    const receivingResult = await supabase.rpc(
-      "get_effective_receiving_tariff",
-      {
-        p_client_id: clientId,
-        p_product_id: product.id,
-        p_date: today(),
-      }
-    );
-
-    if (!receivingResult.error && receivingResult.data?.[0]) {
-      setReceivingPrice(
-        Number(receivingResult.data[0].price_rub || 5)
-      );
-    }
-  }
-
-  const extraKg = Math.max(
-    Number(operationWeight || 0) -
-      Number(includedKg || 0) * Number(quantity || 0),
-    0
-  );
-
-  const shipmentTotal =
-    Number(quantity || 0) * Number(unitPrice || 0) +
-    extraKg * Number(extraKgPrice || 0);
-
-  const receivingTotal = receiving
-    ? Number(quantity || 0) * Number(receivingPrice || 0)
-    : 0;
-
-  const total = shipmentTotal + receivingTotal;
-
-  async function save() {
-    setMessage("");
-
-    if (!clientId || !productId) {
-      setMessage("Выберите клиента и товар.");
-      return;
-    }
-
-    if (Number(quantity) <= 0) {
-      setMessage("Количество должно быть больше нуля.");
-      return;
-    }
-
-    setLoading(true);
-
-    const { error } = await supabase
-      .from("shipments")
-      .insert({
-        client_id: clientId,
-        product_id: productId,
-        shipment_date: today(),
-        quantity: Number(quantity),
-        tariff_type:
-          products.find((p) => p.id === productId)?.size_type ||
-          "small",
-        unit_price_rub: Number(unitPrice),
-        total_rub: Number(total.toFixed(2)),
-        status: "active",
-        note: receiving
-          ? `Приёмка включена: ${receivingPrice} ₽/шт`
-          : null,
-      });
-
-    if (error) {
-      setMessage(error.message);
-      setLoading(false);
-      return;
-    }
-
-    setMessage(
-      `Операция создана. Начислено ${money(total)}.`
-    );
-
-    setLoading(false);
-  }
-
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <div className="page-title">Новая операция</div>
-          <div className="page-subtitle">
-            Обработка товара и отдельная услуга приёмки
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-2">
-        <div className="card card-pad">
-          {message && (
-            <div
-              className={
-                message.startsWith("Операция")
-                  ? "success"
-                  : "error"
-              }
-            >
-              {message}
-            </div>
-          )}
-
-          <div className="field">
-            <label className="label">Клиент *</label>
-
-            <select
-              className="select"
-              value={clientId}
-              onChange={(e) => {
-                setClientId(e.target.value);
-                setProductId("");
-              }}
-            >
-              <option value="">Выберите клиента</option>
-
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="field">
-            <label className="label">Товар *</label>
-
-            <select
-              className="select"
-              value={productId}
-              onChange={(e) => setProductId(e.target.value)}
-              disabled={!clientId}
-            >
-              <option value="">
-                {clientId
-                  ? "Выберите товар"
-                  : "Сначала выберите клиента"}
-              </option>
-
-              {clientProducts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
+        <form onSubmit={save}>
           <div className="grid grid-2">
             <div className="field">
-              <label className="label">Количество, шт.</label>
+              <label className="label">Клиент *</label>
+
+              <select
+                className="select"
+                value={clientId}
+                onChange={(e) => {
+                  setClientId(e.target.value);
+                  setProductId("");
+                  setPrice(null);
+                }}
+                required
+              >
+                <option value="">Выберите клиента</option>
+
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label className="label">Товар *</label>
+
+              <select
+                className="select"
+                value={productId}
+                onChange={(e) =>
+                  setProductId(e.target.value)
+                }
+                disabled={!clientId}
+                required
+              >
+                <option value="">
+                  {clientId
+                    ? "Выберите товар"
+                    : "Сначала выберите клиента"}
+                </option>
+
+                {clientProducts.map((product) => (
+                  <option
+                    key={product.id}
+                    value={product.id}
+                  >
+                    {product.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label className="label">Дата *</label>
+
+              <input
+                className="input"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="field">
+              <label className="label">Количество, шт. *</label>
 
               <input
                 className="input"
@@ -1697,127 +2510,160 @@ function Shipments() {
                 onChange={(e) =>
                   setQuantity(e.target.value)
                 }
+                required
               />
             </div>
+          </div>
 
-            <div className="field">
-              <label className="label">
-                Общий вес операции, кг
-              </label>
+          <div className="field">
+            <label className="label">
+              Вес, кг — необязательно
+            </label>
 
-              <input
-                className="input"
-                type="number"
-                min="0"
-                step="0.001"
-                value={operationWeight}
-                onChange={(e) =>
-                  setOperationWeight(e.target.value)
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="0.001"
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+              placeholder="Например 12.5"
+            />
+          </div>
+
+          <div className="tariff-box">
+            <div className="tariff-title">
+              Расчёт
+            </div>
+
+            <div className="grid grid-3">
+              <div>
+                <div className="stat-label">
+                  Цена товара
+                </div>
+
+                <div className="price-big">
+                  {price == null
+                    ? "—"
+                    : `${money(price)}/шт.`}
+                </div>
+              </div>
+
+              <div>
+                <div className="stat-label">
+                  Количество
+                </div>
+
+                <div className="price-big">
+                  {quantity || 0} шт.
+                </div>
+              </div>
+
+              <div>
+                <div className="stat-label">
+                  Сумма товара
+                </div>
+
+                <div className="price-big">
+                  {money(baseTotal)}
+                </div>
+              </div>
+            </div>
+
+            <div className="divider" />
+
+            <div className="switch-row">
+              <div>
+                <div style={{ fontWeight: 650 }}>
+                  Добавить приёмку
+                </div>
+
+                <div
+                  style={{
+                    color: "var(--muted)",
+                    fontSize: 12,
+                    marginTop: 3,
+                  }}
+                >
+                  {money(receivingPrice)}/шт.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className={`switch ${
+                  receivingEnabled ? "on" : ""
+                }`}
+                onClick={() =>
+                  setReceivingEnabled(!receivingEnabled)
                 }
-              />
-            </div>
-          </div>
-
-          <div className="divider" />
-
-          <div className="switch-row">
-            <div>
-              <strong>Приёмка товара</strong>
-              <div className="page-subtitle">
-                Отдельная услуга, начисляется за штуку.
-              </div>
+              >
+                <span />
+              </button>
             </div>
 
-            <button
-              type="button"
-              className={`switch ${receiving ? "on" : ""}`}
-              onClick={() => setReceiving(!receiving)}
+            <div className="divider" />
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
             >
-              <span />
-            </button>
-          </div>
+              <span
+                style={{
+                  color: "var(--muted)",
+                  fontSize: 13,
+                }}
+              >
+                Итого
+              </span>
 
-          <div className="actions" style={{ marginTop: 18 }}>
-            <button
-              className="btn btn-primary"
-              disabled={loading}
-              onClick={save}
-            >
-              {loading
-                ? "Создание…"
-                : "Создать операцию"}
-            </button>
-          </div>
-        </div>
-
-        <div className="card card-pad">
-          <div className="tariff-title">
-            Расчёт операции
-          </div>
-
-          <div className="grid grid-2">
-            <div className="tariff-box">
-              <div className="label">Базовый тариф</div>
-              <div className="price-big">
-                {money(unitPrice)}
-              </div>
-              <div className="page-subtitle">
-                × {quantity || 0} шт.
-              </div>
-            </div>
-
-            <div className="tariff-box">
-              <div className="label">Доп. кг</div>
-              <div className="price-big">
-                {Number(extraKg || 0).toFixed(3)} кг
-              </div>
-              <div className="page-subtitle">
-                × {money(extraKgPrice)}/кг
-              </div>
+              <strong
+                style={{
+                  fontSize: 25,
+                }}
+              >
+                {money(total)}
+              </strong>
             </div>
           </div>
-
-          <div style={{ marginTop: 16 }} className="tariff-box">
-            <div className="label">
-              Приёмка
-            </div>
-
-            <div className="price-big">
-              {receiving ? money(receivingTotal) : "0,00 ₽"}
-            </div>
-
-            <div className="page-subtitle">
-              {receiving
-                ? `${quantity || 0} шт. × ${money(
-                    receivingPrice
-                  )}`
-                : "Услуга отключена"}
-            </div>
-          </div>
-
-          <div className="divider" />
 
           <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
+            className="field"
+            style={{ marginTop: 16 }}
           >
-            <span style={{ color: "var(--muted)" }}>
-              Итого
-            </span>
+            <label className="label">Комментарий</label>
 
-            <strong style={{ fontSize: 27 }}>
-              {money(total)}
-            </strong>
+            <textarea
+              className="textarea"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Необязательно"
+            />
           </div>
 
-          <div style={{ marginTop: 15 }} className="notice">
-            Первый {includedKg} кг на каждый товар включён в
-            базовый тариф. Дополнительный вес считается отдельно.
+          <div className="divider" />
+
+          <div className="actions">
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={saving}
+            >
+              {saving ? "Сохранение…" : "Создать операцию"}
+            </button>
+
+            <button
+              className="btn btn-ghost"
+              type="button"
+              onClick={onBack}
+            >
+              Отмена
+            </button>
           </div>
-        </div>
+        </form>
       </div>
     </>
   );
@@ -1825,27 +2671,27 @@ function Shipments() {
 
 function Payable() {
   const [shipments, setShipments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+
+    const { data } = await supabase
+      .from("shipments")
+      .select("*, clients(name), products(name)")
+      .eq("status", "active")
+      .order("shipment_date", { ascending: false });
+
+    setShipments(data || []);
+    setLoading(false);
+  }
 
   useEffect(() => {
     load();
   }, []);
 
-  async function load() {
-    const { data } = await supabase
-      .from("shipments")
-      .select(`
-        *,
-        clients(name),
-        products(name)
-      `)
-      .eq("status", "active")
-      .order("shipment_date", { ascending: false });
-
-    setShipments(data || []);
-  }
-
   const total = shipments.reduce(
-    (sum, x) => sum + Number(x.total_rub || 0),
+    (sum, item) => sum + Number(item.total_rub || 0),
     0
   );
 
@@ -1853,22 +2699,29 @@ function Payable() {
     <>
       <div className="page-head">
         <div>
-          <div className="page-title">К оплате</div>
+          <div className="page-title">Начисления</div>
+
           <div className="page-subtitle">
-            Активные начисления
+            Активные суммы по операциям
           </div>
+        </div>
+
+        <div
+          style={{
+            fontSize: 24,
+            fontWeight: 650,
+          }}
+        >
+          {money(total)}
         </div>
       </div>
 
-      <div className="card stat" style={{ marginBottom: 18 }}>
-        <div className="stat-label">Общая сумма</div>
-        <div className="stat-value">{money(total)}</div>
-      </div>
-
-      <div className="card card-pad">
-        {shipments.length === 0 ? (
+      <div className="card">
+        {loading ? (
+          <div className="empty">Загрузка…</div>
+        ) : shipments.length === 0 ? (
           <div className="empty">
-            Активных начислений нет
+            Активных начислений нет.
           </div>
         ) : (
           <div className="table-wrap">
@@ -1880,24 +2733,24 @@ function Payable() {
                   <th>Товар</th>
                   <th>Количество</th>
                   <th>Сумма</th>
-                  <th>Статус</th>
                 </tr>
               </thead>
 
               <tbody>
-                {shipments.map((s) => (
-                  <tr key={s.id}>
-                    <td>{dateRu(s.shipment_date)}</td>
-                    <td>{s.clients?.name || "—"}</td>
-                    <td>{s.products?.name || "—"}</td>
-                    <td>{s.quantity}</td>
+                {shipments.map((shipment) => (
+                  <tr key={shipment.id}>
+                    <td>{dateRu(shipment.shipment_date)}</td>
+
+                    <td>{shipment.clients?.name || "—"}</td>
+
+                    <td>{shipment.products?.name || "—"}</td>
+
+                    <td>{shipment.quantity}</td>
+
                     <td>
-                      <strong>{money(s.total_rub)}</strong>
-                    </td>
-                    <td>
-                      <span className="badge badge-active">
-                        Активна
-                      </span>
+                      <strong>
+                        {money(shipment.total_rub)}
+                      </strong>
                     </td>
                   </tr>
                 ))}
@@ -1910,40 +2763,433 @@ function Payable() {
   );
 }
 
-function History() {
+function Reports() {
+  const [clients, setClients] = useState([]);
+  const [from, setFrom] = useState(
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      .toISOString()
+      .slice(0, 10)
+  );
+  const [to, setTo] = useState(today());
+  const [clientId, setClientId] = useState("");
   const [rows, setRows] = useState([]);
+  const [details, setDetails] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
 
   useEffect(() => {
-    async function load() {
-      const { data } = await supabase
-        .from("audit_log")
-        .select("*")
-        .order("changed_at", {
-          ascending: false,
-        })
-        .limit(200);
+    supabase
+      .from("clients")
+      .select("id,name")
+      .eq("is_active", true)
+      .order("name")
+      .then(({ data }) => {
+        setClients(data || []);
+      });
+  }, []);
 
-      setRows(data || []);
+  async function generate() {
+    setLoading(true);
+    setSearched(true);
+    setSelectedClient(null);
+    setDetails([]);
+
+    let query = supabase
+      .from("shipments")
+      .select(
+        "id,client_id,product_id,shipment_date,quantity,unit_price_rub,total_rub,status,note,clients(name),products(name,sku)"
+      )
+      .gte("shipment_date", from)
+      .lte("shipment_date", to)
+      .eq("status", "active")
+      .order("shipment_date", { ascending: false });
+
+    if (clientId) {
+      query = query.eq("client_id", clientId);
     }
 
+    const { data, error } = await query;
+
+    if (error) {
+      console.error(error);
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
+    const grouped = {};
+
+    for (const item of data || []) {
+      if (!grouped[item.client_id]) {
+        grouped[item.client_id] = {
+          client_id: item.client_id,
+          client_name: item.clients?.name || "Без названия",
+          operations: 0,
+          quantity: 0,
+          total: 0,
+        };
+      }
+
+      grouped[item.client_id].operations += 1;
+      grouped[item.client_id].quantity += Number(
+        item.quantity || 0
+      );
+      grouped[item.client_id].total += Number(
+        item.total_rub || 0
+      );
+    }
+
+    setRows(
+      Object.values(grouped).sort(
+        (a, b) => b.total - a.total
+      )
+    );
+
+    setDetails(data || []);
+    setLoading(false);
+  }
+
+  const totalOperations = rows.reduce(
+    (sum, row) => sum + row.operations,
+    0
+  );
+
+  const totalQuantity = rows.reduce(
+    (sum, row) => sum + row.quantity,
+    0
+  );
+
+  const totalAmount = rows.reduce(
+    (sum, row) => sum + row.total,
+    0
+  );
+
+  function openClient(row) {
+    setSelectedClient(row);
+  }
+
+  const clientDetails = selectedClient
+    ? details.filter(
+        (item) =>
+          item.client_id === selectedClient.client_id
+      )
+    : [];
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <div className="page-title">Отчёты</div>
+
+          <div className="page-subtitle">
+            Итоги по отправлениям за выбранный период
+          </div>
+        </div>
+      </div>
+
+      <div className="card card-pad" style={{ marginBottom: 18 }}>
+        <div className="grid grid-3">
+          <div className="field">
+            <label className="label">Период с</label>
+
+            <input
+              className="input"
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+          </div>
+
+          <div className="field">
+            <label className="label">Период по</label>
+
+            <input
+              className="input"
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </div>
+
+          <div className="field">
+            <label className="label">Клиент</label>
+
+            <select
+              className="select"
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+            >
+              <option value="">Все клиенты</option>
+
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <button
+          className="btn btn-primary"
+          onClick={generate}
+          disabled={loading}
+        >
+          {loading ? "Формирование…" : "Сформировать отчёт"}
+        </button>
+      </div>
+
+      {searched && (
+        <>
+          <div className="grid grid-3" style={{ marginBottom: 18 }}>
+            <div className="card stat">
+              <div className="stat-label">
+                Операции
+              </div>
+
+              <div className="stat-value">
+                {totalOperations}
+              </div>
+
+              <div className="stat-note">
+                за выбранный период
+              </div>
+            </div>
+
+            <div className="card stat">
+              <div className="stat-label">
+                Количество
+              </div>
+
+              <div className="stat-value">
+                {totalQuantity}
+              </div>
+
+              <div className="stat-note">
+                штук
+              </div>
+            </div>
+
+            <div className="card stat">
+              <div className="stat-label">
+                Итого
+              </div>
+
+              <div className="stat-value">
+                {money(totalAmount)}
+              </div>
+
+              <div className="stat-note">
+                активные начисления
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: 18 }}>
+            {rows.length === 0 ? (
+              <div className="empty">
+                За выбранный период операций нет.
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Клиент</th>
+                      <th>Операции</th>
+                      <th>Количество</th>
+                      <th>Итого</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr
+                        key={row.client_id}
+                        className="clickable"
+                        onClick={() => openClient(row)}
+                      >
+                        <td>
+                          <div style={{ fontWeight: 650 }}>
+                            {row.client_name}
+                          </div>
+                        </td>
+
+                        <td>{row.operations}</td>
+
+                        <td>{row.quantity}</td>
+
+                        <td>
+                          <strong>
+                            {money(row.total)}
+                          </strong>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {selectedClient && (
+            <div className="card">
+              <div className="card-pad">
+                <div className="page-head" style={{ marginBottom: 0 }}>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 20,
+                        fontWeight: 650,
+                      }}
+                    >
+                      {selectedClient.client_name}
+                    </div>
+
+                    <div
+                      className="page-subtitle"
+                      style={{ marginTop: 4 }}
+                    >
+                      Детализация за {dateRu(from)} — {dateRu(to)}
+                    </div>
+                  </div>
+
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => setSelectedClient(null)}
+                  >
+                    Закрыть
+                  </button>
+                </div>
+              </div>
+
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Дата</th>
+                      <th>Товар</th>
+                      <th>Количество</th>
+                      <th>Цена</th>
+                      <th>Сумма</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {clientDetails.map((item) => (
+                      <tr key={item.id}>
+                        <td>
+                          {dateRu(item.shipment_date)}
+                        </td>
+
+                        <td>
+                          <div style={{ fontWeight: 650 }}>
+                            {item.products?.name || "—"}
+                          </div>
+
+                          {item.products?.sku && (
+                            <div
+                              style={{
+                                color: "var(--muted)",
+                                fontSize: 11,
+                                marginTop: 3,
+                              }}
+                            >
+                              {item.products.sku}
+                            </div>
+                          )}
+                        </td>
+
+                        <td>{item.quantity}</td>
+
+                        <td>
+                          {money(item.unit_price_rub)}
+                        </td>
+
+                        <td>
+                          <strong>
+                            {money(item.total_rub)}
+                          </strong>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+function History() {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+
+    const { data } = await supabase
+      .from("audit_log")
+      .select("*")
+      .order("changed_at", { ascending: false })
+      .limit(300);
+
+    setLogs(data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
     load();
   }, []);
+
+  function actionLabel(action) {
+    const map = {
+      INSERT: "Создание",
+      UPDATE: "Изменение",
+      DELETE: "Удаление",
+    };
+
+    return map[action] || action || "—";
+  }
+
+  function entityLabel(type) {
+    const map = {
+      clients: "Клиент",
+      products: "Товар",
+      tariffs: "Тариф",
+      shipments: "Операция",
+      storage_records: "Хранение",
+    };
+
+    return map[type] || type || "—";
+  }
 
   return (
     <>
       <div className="page-head">
         <div>
           <div className="page-title">История</div>
+
           <div className="page-subtitle">
-            Аудит изменений системы
+            Журнал изменений системы
           </div>
         </div>
+
+        <button className="btn btn-ghost" onClick={load}>
+          Обновить
+        </button>
       </div>
 
-      <div className="card card-pad">
-        {rows.length === 0 ? (
+      <div className="card">
+        {loading ? (
+          <div className="empty">Загрузка…</div>
+        ) : logs.length === 0 ? (
           <div className="empty">
-            История пока пуста
+            История пока пуста.
           </div>
         ) : (
           <div className="table-wrap">
@@ -1958,12 +3204,29 @@ function History() {
               </thead>
 
               <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>{dateRu(row.changed_at)}</td>
-                    <td>{row.entity_type}</td>
-                    <td>{row.action}</td>
-                    <td>{row.changed_by || "—"}</td>
+                {logs.map((log) => (
+                  <tr key={log.id}>
+                    <td>
+                      {log.changed_at
+                        ? new Date(
+                            log.changed_at
+                          ).toLocaleString("ru-RU")
+                        : "—"}
+                    </td>
+
+                    <td>
+                      {entityLabel(log.entity_type)}
+                    </td>
+
+                    <td>
+                      <span className="badge badge-neutral">
+                        {actionLabel(log.action)}
+                      </span>
+                    </td>
+
+                    <td>
+                      {log.changed_by || "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
