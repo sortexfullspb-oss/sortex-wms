@@ -4810,13 +4810,16 @@ function StorageModal({
 }) {
   const [form, setForm] = useState({
     client_id: defaultClientId || "",
+    billing_mode: "m3",
+    volume_m3: "",
+    unit_count: "",
+    price_per_m3_day_rub: "",
+    price_per_unit_day_rub: "",
     start_date: today(),
     end_date: today(),
-    places: "",
-    rate_rub_per_day: "",
-    total_rub: "",
     status: "planned",
     note: "",
+    total_rub: "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -4829,33 +4832,30 @@ function StorageModal({
   };
 
   useEffect(() => {
-    const places =
-      Number(form.places || 0);
+    const mode = form.billing_mode === "unit" ? "unit" : "m3";
+    const quantity = mode === "m3"
+      ? Number(form.volume_m3 || 0)
+      : Number(form.unit_count || 0);
+    const rate = mode === "m3"
+      ? Number(form.price_per_m3_day_rub || 0)
+      : Number(form.price_per_unit_day_rub || 0);
 
-    const rate =
-      Number(
-        form.rate_rub_per_day || 0
-      );
+    const days = form.start_date && form.end_date
+      ? daysBetween(form.start_date, form.end_date)
+      : 0;
 
-    const days =
-      form.start_date &&
-      form.end_date
-        ? daysBetween(
-            form.start_date,
-            form.end_date
-          )
-        : 0;
-
-    const total =
-      places * rate * days;
+    const total = quantity * rate * days;
 
     setForm((prev) => ({
       ...prev,
       total_rub: total || "",
     }));
   }, [
-    form.places,
-    form.rate_rub_per_day,
+    form.billing_mode,
+    form.volume_m3,
+    form.unit_count,
+    form.price_per_m3_day_rub,
+    form.price_per_unit_day_rub,
     form.start_date,
     form.end_date,
   ]);
@@ -4892,39 +4892,25 @@ function StorageModal({
             form="storage-form"
             disabled={saving}
           >
-            {saving
-              ? "Сохранение…"
-              : "Сохранить"}
+            {saving ? "Сохранение…" : "Сохранить"}
           </Button>
         </>
       }
     >
-      <form
-        id="storage-form"
-        onSubmit={submit}
-      >
+      <form id="storage-form" onSubmit={submit}>
         <div className="form-grid">
           <Field label="Клиент *">
             <select
               className="select"
               value={form.client_id}
               onChange={(event) =>
-                change(
-                  "client_id",
-                  event.target.value
-                )
+                change("client_id", event.target.value)
               }
               required
             >
-              <option value="">
-                Выберите клиента
-              </option>
-
+              <option value="">Выберите клиента</option>
               {clients.map((client) => (
-                <option
-                  key={client.id}
-                  value={client.id}
-                >
+                <option key={client.id} value={client.id}>
                   {client.name}
                 </option>
               ))}
@@ -4935,37 +4921,46 @@ function StorageModal({
             <select
               className="select"
               value={form.status}
-              onChange={(event) =>
-                change(
-                  "status",
-                  event.target.value
-                )
-              }
+              onChange={(event) => change("status", event.target.value)}
             >
-              {STORAGE_STATUSES.map(
-                (status) => (
-                  <option
-                    key={status.value}
-                    value={status.value}
-                  >
-                    {status.label}
-                  </option>
-                )
-              )}
+              {STORAGE_STATUSES.map((status) => (
+                <option key={status.value} value={status.value}>
+                  {status.label}
+                </option>
+              ))}
             </select>
           </Field>
+
+          <Field label="Расчёт хранения *">
+            <select
+              className="select"
+              value={form.billing_mode}
+              onChange={(event) => {
+                const mode = event.target.value;
+                setForm((prev) => ({
+                  ...prev,
+                  billing_mode: mode,
+                  volume_m3: "",
+                  unit_count: "",
+                  price_per_m3_day_rub: "",
+                  price_per_unit_day_rub: "",
+                  total_rub: "",
+                }));
+              }}
+            >
+              <option value="m3">По м³</option>
+              <option value="unit">За единицу</option>
+            </select>
+          </Field>
+
+          <div />
 
           <Field label="Дата начала *">
             <input
               className="input"
               type="date"
               value={form.start_date}
-              onChange={(event) =>
-                change(
-                  "start_date",
-                  event.target.value
-                )
-              }
+              onChange={(event) => change("start_date", event.target.value)}
               required
             />
           </Field>
@@ -4975,80 +4970,82 @@ function StorageModal({
               className="input"
               type="date"
               value={form.end_date}
-              onChange={(event) =>
-                change(
-                  "end_date",
-                  event.target.value
-                )
-              }
+              onChange={(event) => change("end_date", event.target.value)}
               required
             />
           </Field>
 
-          <Field label="Количество мест *">
-            <input
-              className="input"
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={form.places}
-              onChange={(event) =>
-                change(
-                  "places",
-                  event.target.value
-                )
-              }
-              required
-            />
-          </Field>
+          {form.billing_mode === "m3" ? (
+            <>
+              <Field label="Объём, м³ *">
+                <input
+                  className="input"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={form.volume_m3}
+                  onChange={(event) => change("volume_m3", event.target.value)}
+                  required
+                />
+              </Field>
 
-          <Field label="Ставка в день, ₽">
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="0.01"
-              value={
-                form.rate_rub_per_day
-              }
-              onChange={(event) =>
-                change(
-                  "rate_rub_per_day",
-                  event.target.value
-                )
-              }
-            />
-          </Field>
+              <Field label="Ставка за м³ / день, ₽ *">
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.price_per_m3_day_rub}
+                  onChange={(event) =>
+                    change("price_per_m3_day_rub", event.target.value)
+                  }
+                  required
+                />
+              </Field>
+            </>
+          ) : (
+            <>
+              <Field label="Количество единиц *">
+                <input
+                  className="input"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={form.unit_count}
+                  onChange={(event) => change("unit_count", event.target.value)}
+                  required
+                />
+              </Field>
 
-          <Field
-            label="Примечание"
-            full
-          >
+              <Field label="Ставка за единицу / день, ₽ *">
+                <input
+                  className="input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.price_per_unit_day_rub}
+                  onChange={(event) =>
+                    change("price_per_unit_day_rub", event.target.value)
+                  }
+                  required
+                />
+              </Field>
+            </>
+          )}
+
+          <Field label="Примечание" full>
             <textarea
               className="textarea"
               value={form.note}
-              onChange={(event) =>
-                change(
-                  "note",
-                  event.target.value
-                )
-              }
+              onChange={(event) => change("note", event.target.value)}
               placeholder="Комментарий"
             />
           </Field>
         </div>
 
-        <div
-          className="total-preview"
-          style={{ marginTop: 15 }}
-        >
-          <div className="total-preview-label">
-            Итоговая сумма
-          </div>
-
-          <div className="total-preview-value">
-            {money(form.total_rub)}
-          </div>
+        <div className="total-preview" style={{ marginTop: 15 }}>
+          <div className="total-preview-label">Итоговая сумма</div>
+          <div className="total-preview-value">{money(form.total_rub)}</div>
         </div>
       </form>
     </Modal>
