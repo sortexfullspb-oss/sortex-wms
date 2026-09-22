@@ -4398,6 +4398,13 @@ function App() {
 
   const addClient = async (payload) => {
     try {
+      if (!supabase) throw new Error("Supabase не настроен.");
+
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData?.user) {
+        throw new Error("Сессия авторизации Supabase отсутствует или истекла. Выйдите и войдите снова.");
+      }
+
       const clientPayload = {
         name: String(
           payload.name || ""
@@ -4486,6 +4493,7 @@ function App() {
 
   const addProduct = async (payload) => {
     try {
+      if (!supabase) throw new Error("Supabase не настроен.");
       if (!payload.client_id) {
         throw new Error("Выберите клиента.");
       }
@@ -4523,6 +4531,7 @@ function App() {
 
   const addTariff = async (payload) => {
     try {
+      if (!supabase) throw new Error("Supabase не настроен.");
       if (!payload.client_id) throw new Error("Выберите клиента.");
 
       const insertPayload = {
@@ -4553,6 +4562,7 @@ function App() {
 
   const addShipment = async (payload) => {
     try {
+      if (!supabase) throw new Error("Supabase не настроен.");
       const quantity =
         Number(payload.quantity);
 
@@ -4598,6 +4608,17 @@ function App() {
         );
       }
 
+      // В БД total_rub проверяется отдельным CHECK-ограничением.
+      // Поэтому считаем сумму строго по той же формуле, что и Supabase.
+      const baseUnitPrice = Number(payload.base_unit_price_rub || 0);
+      const includedWeight = Number(payload.included_weight_kg || 0);
+      const extraKgPrice = Number(payload.extra_kg_price_rub || 0);
+      const extraKg = Math.max(weight - includedWeight, 0);
+      const extraRub = extraKg * extraKgPrice;
+      const receivingUnitPrice = Number(payload.receiving_unit_price_rub || 0);
+      const receivingTotal = payload.receiving_enabled ? quantity * receivingUnitPrice : 0;
+      const dbTotal = Number((quantity * (baseUnitPrice + extraRub) + receivingTotal).toFixed(2));
+
       const extendedPayload = {
         client_id:
           payload.client_id,
@@ -4615,10 +4636,10 @@ function App() {
           "shipment",
 
         unit_price_rub:
-          unitPrice,
+          unitPrice || baseUnitPrice,
 
         total_rub:
-          total,
+          dbTotal,
 
         weight_kg:
           weight,
@@ -4642,9 +4663,7 @@ function App() {
           ),
 
         extra_kg_rub:
-          Number(
-            payload.extra_kg_rub || 0
-          ),
+          Number(extraRub.toFixed(2)),
 
         receiving_enabled:
           Boolean(
@@ -4658,10 +4677,7 @@ function App() {
           ),
 
         receiving_total_rub:
-          Number(
-            payload.receiving_total_rub ||
-              0
-          ),
+          Number(receivingTotal.toFixed(2)),
 
         note:
           payload.note || null,
@@ -4744,6 +4760,7 @@ function App() {
 
   const addStorage = async (payload) => {
     try {
+      if (!supabase) throw new Error("Supabase не настроен.");
       if (!payload.client_id) throw new Error("Выберите клиента.");
       if (!payload.start_date || !payload.end_date) throw new Error("Укажите период хранения.");
       if (payload.end_date < payload.start_date) throw new Error("Дата окончания не может быть раньше даты начала.");
@@ -4755,6 +4772,7 @@ function App() {
       const priceM3 = mode === "m3" ? Number(payload.price_per_m3_day_rub || 0) : 0;
       const priceUnit = mode === "unit" ? Number(payload.price_per_unit_day_rub || 0) : 0;
       const total = mode === "m3" ? volume * days * priceM3 : units * days * priceUnit;
+      const roundedTotal = Number(total.toFixed(2));
 
       if (mode === "m3" && volume <= 0) throw new Error("Укажите объём в м³.");
       if (mode === "unit" && units <= 0) throw new Error("Укажите количество единиц.");
@@ -4766,7 +4784,7 @@ function App() {
         end_date: payload.end_date,
         tariff_type: "storage",
         price_per_m3_day_rub: priceM3,
-        total_rub: Number(total.toFixed(2)),
+        total_rub: roundedTotal,
         status: payload.status || "planned",
         note: payload.note || null,
         created_by: session?.user?.id || null,
