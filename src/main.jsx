@@ -1309,6 +1309,9 @@ const Button = ({
   type = "button",
   disabled = false,
   style,
+  form,
+  name,
+  value,
 }) => (
   <button
     type={type}
@@ -1322,6 +1325,9 @@ const Button = ({
     onClick={onClick}
     disabled={disabled}
     style={style}
+    form={form}
+    name={name}
+    value={value}
   >
     {children}
   </button>
