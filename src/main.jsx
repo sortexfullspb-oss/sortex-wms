@@ -89,7 +89,9 @@ const csvEscape = (value) => {
 };
 
 const downloadCSV = (filename, rows) => {
-  if (!rows.length) return;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new Error("В выбранном периоде нет данных для сохранения отчета.");
+  }
 
   const headers = Object.keys(rows[0]);
   const csv = [
@@ -97,20 +99,26 @@ const downloadCSV = (filename, rows) => {
     ...rows.map((row) =>
       headers.map((header) => csvEscape(row[header])).join(";")
     ),
-  ].join("\n");
+  ].join("\r\n");
 
   const blob = new Blob(["\uFEFF" + csv], {
-    type: "text/csv;charset=utf-8;",
+    type: "text/csv;charset=utf-8",
   });
 
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.style.display = "none";
   document.body.appendChild(a);
   a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+
+  // Do not revoke the object URL immediately: some browsers cancel
+  // the download when it is revoked in the same tick.
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 1000);
 };
 
 /* =========================================================
@@ -216,6 +224,55 @@ button:active {
   flex-direction: column;
   padding: 20px;
   z-index: 20;
+}
+
+.sidebar.collapsed {
+  width: 78px;
+  padding: 14px 10px;
+}
+
+.sidebar.collapsed .brand {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.sidebar.collapsed .brand > div:last-child,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .nav-button span:last-child,
+.sidebar.collapsed .user-email {
+  display: none;
+}
+
+.sidebar.collapsed .nav-button {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 18px;
+  right: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-line);
+  background: var(--panel-2);
+  color: var(--gold-2);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 3;
+  box-shadow: var(--shadow);
+}
+
+.mobile-nav-toggle {
+  display: none;
+}
+
+.sidebar-overlay {
+  display: none;
 }
 
 .brand {
@@ -328,6 +385,12 @@ button:active {
   width: calc(100% - 286px);
   margin-left: 286px;
   padding: 26px 28px 40px;
+  transition: margin-left .2s ease, width .2s ease;
+}
+
+.main.sidebar-collapsed {
+  width: calc(100% - 114px);
+  margin-left: 114px;
 }
 
 .topbar {
@@ -957,6 +1020,61 @@ tr:hover td {
 
 .print-only {
   display: none;
+}
+
+
+@media (max-width: 960px) {
+  .mobile-nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar {
+    left: 10px;
+    top: 10px;
+    bottom: 10px;
+    transform: translateX(-120%);
+    transition: transform .2s ease;
+    width: min(280px, calc(100vw - 30px));
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar.collapsed {
+    width: min(280px, calc(100vw - 30px));
+    padding: 20px;
+  }
+
+  .sidebar.collapsed .brand > div:last-child,
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed .nav-button span:last-child,
+  .sidebar.collapsed .user-email {
+    display: block;
+  }
+
+  .sidebar.collapsed .nav-button {
+    justify-content: flex-start;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .sidebar-overlay.visible {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 15;
+  }
+
+  .main,
+  .main.sidebar-collapsed {
+    width: auto;
+    margin-left: 0;
+    padding: 18px 12px 30px;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -2367,6 +2485,7 @@ function Reports({
   shipments,
   storage,
   loading,
+  onNotify,
 }) {
   const [from, setFrom] = useState(firstDayOfMonth());
   const [to, setTo] = useState(today());
@@ -2442,17 +2561,26 @@ function Reports({
     .reduce((sum, x) => sum + x.amount, 0);
 
   const exportReport = () => {
-    downloadCSV(
-      `sortex-report-${from}-${to}.csv`,
-      operations.map((x) => ({
+    try {
+      if (!from || !to || from > to) {
+        throw new Error("Проверьте период отчета: дата начала не может быть позже даты окончания.");
+      }
+
+      const rows = operations.map((x) => ({
         Дата: formatDate(x.date),
         Тип: x.type,
         Клиент: x.client,
         Операция: x.description,
-        Сумма: x.amount.toFixed(2),
+        Сумма: Number(x.amount || 0).toFixed(2),
         Валюта: "RUB",
-      }))
-    );
+      }));
+
+      downloadCSV(`sortex-report-${from}-${to}.csv`, rows);
+      onNotify?.(`Отчет сохранен: ${rows.length} строк.`);
+    } catch (error) {
+      console.error(error);
+      onNotify?.(error?.message || "Не удалось сохранить отчет.", "error");
+    }
   };
 
   return (
@@ -2469,8 +2597,8 @@ function Reports({
           <Button variant="secondary" onClick={() => window.print()}>
             Печать / PDF
           </Button>
-          <Button onClick={exportReport}>
-            Скачать CSV
+          <Button onClick={exportReport} disabled={loading || operations.length === 0}>
+            Сохранить отчет CSV
           </Button>
         </div>
       </div>
@@ -2624,12 +2752,44 @@ function ClientModal({ onClose, onSave }) {
   });
 
   const [saving, setSaving] = useState(false);
+  const [clientProducts, setClientProducts] = useState([]);
 
   const set = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const addClientProduct = () => {
+    setClientProducts((prev) => [
+      ...prev,
+      { sku: "", name: "", price_rub: "" },
+    ]);
+  };
+
+  const updateClientProduct = (index, key, value) => {
+    setClientProducts((prev) =>
+      prev.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [key]: value } : item
+      )
+    );
+  };
+
+  const removeClientProduct = (index) => {
+    setClientProducts((prev) =>
+      prev.filter((_, itemIndex) => itemIndex !== index)
+    );
+  };
+
   const save = async () => {
     if (!form.name.trim()) return;
+
+    const invalidProduct = clientProducts.some(
+      (item) =>
+        !item.sku.trim() ||
+        !item.name.trim() ||
+        !Number.isFinite(Number(item.price_rub)) ||
+        Number(item.price_rub) < 0
+    );
+
+    if (invalidProduct) return;
 
     setSaving(true);
     await onSave({
@@ -2641,6 +2801,11 @@ function ClientModal({ onClose, onSave }) {
       phone: form.phone || null,
       email: form.email || null,
       notes: form.notes || null,
+      client_products: clientProducts.map((item) => ({
+        sku: item.sku.trim(),
+        name: item.name.trim(),
+        price_rub: Number(item.price_rub),
+      })),
     });
     setSaving(false);
   };
@@ -2718,6 +2883,84 @@ function ClientModal({ onClose, onSave }) {
             value={form.email}
             onChange={(e) => set("email", e.target.value)}
           />
+        </div>
+
+        <div className="form-field full">
+          <div className="section-header" style={{ marginBottom: 10 }}>
+            <div>
+              <div className="form-label" style={{ marginBottom: 3 }}>Товары клиента</div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Выберите название товара и задайте стоимость этого товара.
+              </div>
+            </div>
+            <Button small type="button" onClick={addClientProduct}>
+              + Товар
+            </Button>
+          </div>
+
+          {clientProducts.length === 0 ? (
+            <div className="empty" style={{ padding: 16 }}>
+              Товары можно добавить сразу при создании клиента.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              {clientProducts.map((item, index) => (
+                <div
+                  key={index}
+                  className="card"
+                  style={{ padding: 12, boxShadow: "none" }}
+                >
+                  <div className="form-grid-3">
+                    <div className="form-field">
+                      <label className="form-label">SKU *</label>
+                      <input
+                        className="input"
+                        value={item.sku}
+                        onChange={(e) =>
+                          updateClientProduct(index, "sku", e.target.value)
+                        }
+                        placeholder="SKU-001"
+                      />
+                    </div>
+                    <div className="form-field">
+                      <label className="form-label">Название товара *</label>
+                      <input
+                        className="input"
+                        value={item.name}
+                        onChange={(e) =>
+                          updateClientProduct(index, "name", e.target.value)
+                        }
+                        placeholder="Название товара"
+                      />
+                    </div>
+                    <div className="form-field">
+                      <label className="form-label">Сумма за товар, ₽ *</label>
+                      <input
+                        className="input"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.price_rub}
+                        onChange={(e) =>
+                          updateClientProduct(index, "price_rub", e.target.value)
+                        }
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    small
+                    variant="secondary"
+                    type="button"
+                    onClick={() => removeClientProduct(index)}
+                    style={{ marginTop: 8 }}
+                  >
+                    Удалить товар
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="form-field full">
@@ -3749,6 +3992,8 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   const [page, setPage] = useState("dashboard");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
@@ -3780,7 +4025,7 @@ function App() {
       error?.message ||
       error?.details ||
       error?.hint ||
-      "Произошла ошибка при сохранении данных.";
+      "Произошла ошибка. Проверьте подключение к базе данных и права доступа.";
 
     showToast(message, "error");
   };
@@ -3877,19 +4122,24 @@ function App() {
           }),
       ]);
 
-      const results = [
-        clientsResult,
-        productsResult,
-        tariffsResult,
-        shipmentsResult,
-        storageResult,
-        requestsResult,
+      const namedResults = [
+        ["clients", clientsResult],
+        ["products", productsResult],
+        ["service_tariffs", tariffsResult],
+        ["shipments", shipmentsResult],
+        ["storage_records", storageResult],
+        ["cooperation_requests", requestsResult],
       ];
 
-      const failed = results.find((x) => x.error);
+      const failed = namedResults.find(([, result]) => result.error);
 
-      if (failed?.error) {
-        throw failed.error;
+      if (failed?.[1]?.error) {
+        const error = failed[1].error;
+        throw new Error(
+          `Не удалось загрузить таблицу ${failed[0]}: ${
+            error.message || error.details || "неизвестная ошибка"
+          }`
+        );
       }
 
       setClients(clientsResult.data || []);
@@ -3958,26 +4208,73 @@ function App() {
 
   const addClient = async (payload) => {
     try {
-      const { data, error } = await supabase
+      const clientProducts = Array.isArray(payload.client_products)
+        ? payload.client_products
+        : [];
+      const { client_products, ...clientPayload } = payload;
+
+      const { data: clientData, error: clientError } = await supabase
         .from("clients")
         .insert({
-          ...payload,
+          ...clientPayload,
           is_active: true,
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (clientError) throw clientError;
+
+      const createdProducts = [];
+
+      for (const item of clientProducts) {
+        const { data: productData, error: productError } = await supabase
+          .from("products")
+          .insert({
+            client_id: clientData.id,
+            sku: item.sku.trim(),
+            name: item.name.trim(),
+            is_active: true,
+          })
+          .select()
+          .single();
+
+        if (productError) throw productError;
+        createdProducts.push(productData);
+
+        const { data: tariffData, error: tariffError } = await supabase
+          .from("service_tariffs")
+          .insert({
+            client_id: clientData.id,
+            product_id: productData.id,
+            service_type: "shipment",
+            price_rub: Number(item.price_rub),
+            enabled: true,
+            effective_from: today(),
+            effective_to: null,
+            notes: null,
+            included_weight_kg: 1,
+            extra_kg_price_rub: 0,
+          })
+          .select()
+          .single();
+
+        if (tariffError) throw tariffError;
+        setTariffs((prev) => [tariffData, ...prev]);
+      }
 
       setClients((prev) =>
-        [...prev, data].sort((a, b) =>
+        [...prev, clientData].sort((a, b) =>
           String(a.name).localeCompare(String(b.name))
         )
       );
-
-      setSelectedClientId(data.id);
+      setProducts((prev) => [...prev, ...createdProducts]);
+      setSelectedClientId(clientData.id);
       setModal(null);
-      showToast("Клиент создан.");
+      showToast(
+        clientProducts.length
+          ? `Клиент создан. Добавлено товаров: ${clientProducts.length}.`
+          : "Клиент создан."
+      );
     } catch (error) {
       showError(error);
     }
@@ -4227,6 +4524,11 @@ function App() {
     },
   ];
 
+  const navigateTo = (nextPage) => {
+    setPage(nextPage);
+    setMobileNavOpen(false);
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
     setSession(null);
@@ -4294,7 +4596,24 @@ function App() {
       <style>{CSS}</style>
 
       <div className="app">
-        <aside className="sidebar">
+        <div
+          className={`sidebar-overlay ${mobileNavOpen ? "visible" : ""}`}
+          onClick={() => setMobileNavOpen(false)}
+        />
+
+        <aside
+          className={`sidebar ${sidebarCollapsed ? "collapsed" : ""} ${
+            mobileNavOpen ? "mobile-open" : ""
+          }`}
+        >
+          <button
+            className="sidebar-toggle"
+            onClick={() => setSidebarCollapsed((value) => !value)}
+            aria-label={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
+            title={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
+          >
+            {sidebarCollapsed ? "›" : "‹"}
+          </button>
           <div className="brand">
             <div className="brand-mark">
               <span />
@@ -4319,7 +4638,7 @@ function App() {
                 className={`nav-button ${
                   page === item.id ? "active" : ""
                 }`}
-                onClick={() => setPage(item.id)}
+                onClick={() => navigateTo(item.id)}
               >
                 <span className="nav-icon">
                   <Icon type={item.icon} />
@@ -4348,7 +4667,13 @@ function App() {
           </div>
         </aside>
 
-        <main className="main">
+        <main className={`main ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+          <button
+            className="button mobile-nav-toggle"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            ☰ Меню
+          </button>
           {page === "dashboard" && (
             <Dashboard
               clients={clients}
@@ -4363,7 +4688,7 @@ function App() {
                 openStorageModal()
               }
               onAddClient={openClientModal}
-              onNavigate={setPage}
+              onNavigate={navigateTo}
             />
           )}
 
@@ -4426,6 +4751,7 @@ function App() {
               shipments={shipments}
               storage={storage}
               loading={loading}
+              onNotify={showToast}
             />
           )}
         </main>
