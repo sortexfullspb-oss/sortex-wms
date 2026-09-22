@@ -2,55 +2,141 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
 
-/* =========================================================
-   SORTEX WMS
-   One-file application: src/main.jsx
-
-   Required .env:
-   VITE_SUPABASE_URL=...
-   VITE_SUPABASE_ANON_KEY=...
-   ========================================================= */
-
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase =
+  SUPABASE_URL && SUPABASE_ANON_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
 
 /* =========================================================
-   GLOBAL STYLES
+   SORTEX WMS — single file application
+   Database schema is matched to the existing Supabase schema.
+   Currency: RUB
    ========================================================= */
 
-const css = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
+const RUB = new Intl.NumberFormat("ru-RU", {
+  style: "currency",
+  currency: "RUB",
+  maximumFractionDigits: 2,
+});
 
+const NUM = new Intl.NumberFormat("ru-RU", {
+  maximumFractionDigits: 2,
+});
+
+const TARIFF_TYPES = [
+  { value: "small", label: "Small" },
+  { value: "medium", label: "Medium" },
+  { value: "large", label: "Large" },
+  { value: "shipment", label: "Отгрузка" },
+];
+
+const SERVICE_TYPES = [
+  { value: "shipment", label: "Отгрузка" },
+  { value: "receiving", label: "Приёмка" },
+];
+
+const OPERATION_STATUSES = [
+  { value: "active", label: "Активна" },
+  { value: "cancelled", label: "Отменена" },
+];
+
+const STORAGE_STATUSES = [
+  { value: "planned", label: "Запланировано" },
+  { value: "active", label: "Активно" },
+  { value: "completed", label: "Завершено" },
+  { value: "cancelled", label: "Отменено" },
+];
+
+const REQUEST_STATUSES = [
+  { value: "new", label: "Новая" },
+  { value: "in_progress", label: "В работе" },
+  { value: "contacted", label: "Связались" },
+  { value: "closed", label: "Закрыта" },
+];
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+const firstDayOfMonth = () => {
+  const d = new Date();
+  d.setDate(1);
+  return d.toISOString().slice(0, 10);
+};
+
+const money = (value) => RUB.format(Number(value || 0));
+
+const number = (value) => NUM.format(Number(value || 0));
+
+const formatDate = (value) => {
+  if (!value) return "—";
+  const [y, m, d] = String(value).slice(0, 10).split("-");
+  if (!y || !m || !d) return value;
+  return `${d}.${m}.${y}`;
+};
+
+const daysBetween = (start, end) => {
+  const a = new Date(`${start}T00:00:00`);
+  const b = new Date(`${end}T00:00:00`);
+  const diff = Math.ceil((b - a) / 86400000);
+  return Math.max(1, diff + 1);
+};
+
+const csvEscape = (value) => {
+  const text = value == null ? "" : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+};
+
+const downloadCSV = (filename, rows) => {
+  if (!rows.length) return;
+
+  const headers = Object.keys(rows[0]);
+  const csv = [
+    headers.map(csvEscape).join(";"),
+    ...rows.map((row) =>
+      headers.map((header) => csvEscape(row[header])).join(";")
+    ),
+  ].join("\n");
+
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
+/* =========================================================
+   CSS
+   ========================================================= */
+
+const CSS = `
 :root {
-  --bg: #11100e;
-  --bg-soft: #171614;
-  --panel: #1b1916;
-  --panel-2: #211e1a;
-  --panel-3: #26221d;
-  --line: rgba(231, 193, 113, .14);
-  --line-strong: rgba(231, 193, 113, .25);
-
-  --gold: #d7ae61;
-  --gold-light: #f0d18b;
-  --gold-soft: rgba(215, 174, 97, .11);
-  --gold-glow: rgba(215, 174, 97, .13);
-
-  --text: #f4efe5;
-  --text-soft: #bdb5a8;
-  --text-muted: #817a70;
-
-  --green: #89aa83;
-  --red: #bd7770;
-  --blue: #8297aa;
-
-  --shadow:
-    0 20px 60px rgba(0, 0, 0, .30),
-    0 0 80px rgba(215, 174, 97, .025);
-
-  --radius: 16px;
-  --radius-small: 11px;
+  --bg: #151514;
+  --bg-soft: #191816;
+  --panel: #1d1c19;
+  --panel-2: #24221e;
+  --panel-3: #292620;
+  --gold: #c7a36a;
+  --gold-2: #d5b77f;
+  --gold-soft: rgba(199,163,106,.12);
+  --gold-line: rgba(199,163,106,.25);
+  --text: #f3efe7;
+  --muted: #a9a39a;
+  --muted-2: #777168;
+  --border: rgba(255,255,255,.075);
+  --danger: #c97c72;
+  --success: #91ae8a;
+  --warning: #c4a56d;
+  --shadow: 0 18px 60px rgba(0,0,0,.28);
+  --radius: 18px;
 }
 
 * {
@@ -61,15 +147,33 @@ html,
 body,
 #root {
   margin: 0;
-  width: 100%;
   min-height: 100%;
-  background: var(--bg);
+  width: 100%;
 }
 
 body {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   color: var(--text);
-  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(
+      circle at 10% 5%,
+      rgba(199,163,106,.09),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 90% 85%,
+      rgba(199,163,106,.055),
+      transparent 30%
+    ),
+    var(--bg);
+  letter-spacing: .01em;
 }
 
 button,
@@ -83,429 +187,265 @@ button {
   cursor: pointer;
 }
 
+button:active {
+  transform: translateY(1px);
+}
+
+::selection {
+  background: rgba(199,163,106,.28);
+  color: white;
+}
+
 .app {
-  min-height: 100vh;
-  background:
-    radial-gradient(
-      ellipse 80% 60% at 50% -15%,
-      rgba(215, 174, 97, .055),
-      transparent 65%
-    ),
-    radial-gradient(
-      ellipse 45% 40% at 100% 100%,
-      rgba(215, 174, 97, .025),
-      transparent 70%
-    ),
-    var(--bg);
-}
-
-/* =========================================================
-   LOGIN
-   ========================================================= */
-
-.login-screen {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 30px;
-  position: relative;
-  overflow: hidden;
-}
-
-.login-screen::before {
-  content: "";
-  position: absolute;
-  width: 700px;
-  height: 700px;
-  border-radius: 50%;
-  background: rgba(215, 174, 97, .035);
-  filter: blur(100px);
-  top: -350px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.login-card {
-  width: 100%;
-  max-width: 430px;
-  position: relative;
-  padding: 44px;
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(39, 35, 29, .94),
-      rgba(22, 20, 17, .97)
-    );
-  box-shadow: var(--shadow);
-}
-
-.login-logo {
-  text-align: center;
-  margin-bottom: 40px;
-}
-
-.logo-mark {
-  width: 54px;
-  height: 54px;
-  margin: 0 auto 18px;
-  border-radius: 15px;
-  display: grid;
-  place-items: center;
-  color: #15120e;
-  background: linear-gradient(
-    145deg,
-    var(--gold-light),
-    var(--gold)
-  );
-  font-family: Manrope, sans-serif;
-  font-weight: 800;
-  font-size: 18px;
-  box-shadow:
-    0 8px 30px rgba(215, 174, 97, .12),
-    inset 0 1px rgba(255,255,255,.25);
-}
-
-.login-title {
-  font-family: Manrope, sans-serif;
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: .08em;
-}
-
-.login-subtitle {
-  color: var(--text-muted);
-  margin-top: 7px;
-  font-size: 13px;
-}
-
-/* =========================================================
-   LAYOUT
-   ========================================================= */
-
-.shell {
   min-height: 100vh;
   display: flex;
 }
 
 .sidebar {
-  width: 250px;
-  min-height: 100vh;
   position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 20;
+  left: 18px;
+  top: 18px;
+  bottom: 18px;
+  width: 250px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(29,28,25,.92);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  padding: 25px 15px;
-  background:
-    linear-gradient(
-      180deg,
-      #171511 0%,
-      #12110f 100%
-    );
-  border-right: 1px solid var(--line);
+  padding: 20px;
+  z-index: 20;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 2px 10px 28px;
+  margin-bottom: 28px;
+  padding: 4px 4px 10px;
 }
 
-.brand-symbol {
+.brand-mark {
   width: 40px;
   height: 40px;
-  border-radius: 11px;
+  border-radius: 13px;
+  border: 1px solid var(--gold-line);
   display: grid;
   place-items: center;
-  background: linear-gradient(145deg, #efd18b, #c99d50);
-  color: #15120d;
-  font-family: Manrope, sans-serif;
-  font-weight: 800;
-  font-size: 13px;
-  box-shadow: 0 6px 20px rgba(215,174,97,.08);
+  color: var(--gold-2);
+  background: var(--gold-soft);
+  box-shadow: inset 0 0 22px rgba(199,163,106,.05);
 }
 
-.brand-name {
-  font-family: Manrope, sans-serif;
-  font-weight: 800;
-  letter-spacing: .12em;
-  font-size: 14px;
+.brand-mark span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 18px rgba(199,163,106,.22);
 }
 
-.brand-caption {
+.brand-title {
+  font-weight: 750;
+  letter-spacing: .11em;
+  font-size: 15px;
+}
+
+.brand-subtitle {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--muted-2);
   margin-top: 3px;
-  letter-spacing: .08em;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.nav-label {
+  font-size: 10px;
+  color: var(--muted-2);
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  margin: 0 8px 9px;
 }
 
 .nav {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.nav-section-title {
-  color: #5f594f;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: .14em;
-  padding: 17px 12px 8px;
+  display: grid;
+  gap: 6px;
 }
 
 .nav-button {
   width: 100%;
   border: 1px solid transparent;
-  color: var(--text-soft);
+  color: var(--muted);
   background: transparent;
+  border-radius: 12px;
   padding: 11px 12px;
-  border-radius: 10px;
   display: flex;
   align-items: center;
   gap: 11px;
   text-align: left;
-  transition: all .18s ease;
+  transition: .18s ease;
 }
 
 .nav-button:hover {
   color: var(--text);
-  background: rgba(255,255,255,.025);
-}
-
-.nav-button:active {
-  transform: translateY(1px);
-  background: rgba(215,174,97,.10);
-  box-shadow: inset 0 0 18px rgba(215,174,97,.06);
+  background: rgba(255,255,255,.035);
 }
 
 .nav-button.active {
-  color: var(--gold-light);
-  background: linear-gradient(
-    90deg,
-    rgba(215,174,97,.10),
-    rgba(215,174,97,.035)
-  );
-  border-color: rgba(215,174,97,.12);
-  box-shadow: inset 2px 0 0 var(--gold);
+  color: var(--gold-2);
+  background: var(--gold-soft);
+  border-color: var(--gold-line);
+  box-shadow: 0 0 24px rgba(199,163,106,.07);
 }
 
 .nav-icon {
-  width: 20px;
+  width: 19px;
   text-align: center;
-  font-size: 16px;
   opacity: .9;
 }
 
 .sidebar-bottom {
   margin-top: auto;
-  border-top: 1px solid var(--line);
-  padding-top: 15px;
 }
 
-.user-card {
-  padding: 11px;
-  border-radius: 11px;
-  background: rgba(255,255,255,.018);
-  margin-bottom: 8px;
+.user-box {
+  border-top: 1px solid var(--border);
+  padding-top: 15px;
+  margin-top: 15px;
 }
 
 .user-email {
-  font-size: 11px;
-  color: var(--text-muted);
+  color: var(--muted);
+  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin-bottom: 10px;
 }
 
-/* =========================================================
-   MAIN
-   ========================================================= */
-
 .main {
-  margin-left: 250px;
-  width: calc(100% - 250px);
-  min-height: 100vh;
+  width: calc(100% - 286px);
+  margin-left: 286px;
+  padding: 26px 28px 40px;
 }
 
 .topbar {
-  height: 76px;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 0 34px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(17,16,14,.75);
-  backdrop-filter: blur(18px);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 25px;
 }
 
 .page-title {
-  font-family: Manrope, sans-serif;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.15;
+  margin: 0;
+  letter-spacing: -.025em;
 }
 
 .page-subtitle {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 3px;
+  color: var(--muted);
+  margin-top: 7px;
+  font-size: 13px;
 }
 
-.topbar-right {
+.top-actions {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.content {
-  padding: 30px 34px 50px;
-  max-width: 1600px;
+.button {
+  border: 1px solid var(--gold-line);
+  background: var(--gold-soft);
+  color: var(--gold-2);
+  padding: 10px 14px;
+  border-radius: 11px;
+  transition: .16s ease;
+  font-weight: 650;
+  font-size: 13px;
 }
 
-/* =========================================================
-   COMMON
-   ========================================================= */
-
-button.primary {
-  border: 1px solid rgba(238, 206, 143, .25);
-  background: linear-gradient(145deg, #dfbc73, #c69b50);
-  color: #17130d;
-  font-weight: 700;
-  border-radius: 10px;
-  padding: 10px 16px;
-  box-shadow: 0 5px 20px rgba(215,174,97,.07);
-  transition: all .18s ease;
+.button:hover {
+  background: rgba(199,163,106,.17);
+  box-shadow: 0 0 22px rgba(199,163,106,.09);
 }
 
-button.primary:hover {
-  filter: brightness(1.04);
-  transform: translateY(-1px);
-  box-shadow: 0 7px 25px rgba(215,174,97,.11);
+.button:active {
+  box-shadow:
+    0 0 0 1px rgba(199,163,106,.18),
+    0 0 25px rgba(199,163,106,.13);
 }
 
-button.primary:active {
-  transform: translateY(0);
-  box-shadow: inset 0 0 18px rgba(70,40,5,.14);
-}
-
-button.secondary,
-button.ghost {
-  border: 1px solid var(--line);
+.button.secondary {
   background: rgba(255,255,255,.025);
-  color: var(--text-soft);
-  border-radius: 10px;
-  padding: 10px 15px;
-  transition: all .18s ease;
-}
-
-button.secondary:hover,
-button.ghost:hover {
-  border-color: var(--line-strong);
   color: var(--text);
-  background: rgba(215,174,97,.045);
+  border-color: var(--border);
 }
 
-button.secondary:active,
-button.ghost:active {
-  background: rgba(215,174,97,.10);
-  box-shadow: inset 0 0 16px rgba(215,174,97,.05);
+.button.danger {
+  color: #df9a91;
+  border-color: rgba(201,124,114,.28);
+  background: rgba(201,124,114,.08);
 }
 
-button.danger {
-  border: 1px solid rgba(189,119,112,.22);
-  color: #d0958e;
-  background: rgba(189,119,112,.06);
-  border-radius: 10px;
-  padding: 10px 15px;
-}
-
-button.small {
+.button.small {
   padding: 7px 10px;
   font-size: 12px;
 }
 
-button:disabled {
-  opacity: .5;
-  cursor: not-allowed;
-}
-
 .grid {
   display: grid;
-  gap: 16px;
+  gap: 15px;
 }
 
 .grid-4 {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .grid-3 {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .grid-2 {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .card {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(34,31,26,.95),
-      rgba(27,25,22,.96)
-    );
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
+  background: rgba(29,28,25,.86);
   border-radius: var(--radius);
-  box-shadow: 0 15px 45px rgba(0,0,0,.10);
+  box-shadow: 0 12px 40px rgba(0,0,0,.13);
 }
 
-.card-padding {
-  padding: 20px;
+.kpi {
+  padding: 19px;
+  min-height: 128px;
 }
 
-.stat-card {
-  padding: 20px;
-  min-height: 135px;
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-card::after {
-  content: "";
-  position: absolute;
-  right: -50px;
-  bottom: -70px;
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  background: rgba(215,174,97,.035);
-  filter: blur(20px);
-}
-
-.stat-label {
-  color: var(--text-muted);
+.kpi-label {
+  color: var(--muted);
   font-size: 12px;
 }
 
-.stat-value {
+.kpi-value {
   margin-top: 13px;
-  font-family: Manrope, sans-serif;
-  font-size: 29px;
-  font-weight: 700;
-  letter-spacing: -.03em;
+  font-size: 27px;
+  font-weight: 720;
+  letter-spacing: -.025em;
 }
 
-.stat-description {
-  margin-top: 8px;
+.kpi-foot {
+  color: var(--muted-2);
   font-size: 11px;
-  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.section {
+  margin-top: 17px;
 }
 
 .section-header {
@@ -513,92 +453,23 @@ button:disabled {
   justify-content: space-between;
   align-items: center;
   gap: 15px;
-  margin-bottom: 18px;
+  padding: 17px 18px;
+  border-bottom: 1px solid var(--border);
 }
 
 .section-title {
-  font-family: Manrope, sans-serif;
+  font-size: 15px;
   font-weight: 700;
-  font-size: 16px;
 }
 
-.section-description {
-  color: var(--text-muted);
-  font-size: 12px;
+.section-subtitle {
+  color: var(--muted);
+  font-size: 11px;
   margin-top: 4px;
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  flex-wrap: wrap;
-}
-
-.search {
-  min-width: 240px;
-}
-
-input,
-select,
-textarea {
-  width: 100%;
-  color: var(--text);
-  background: #151310;
-  border: 1px solid rgba(255,255,255,.09);
-  border-radius: 9px;
-  outline: none;
-  padding: 10px 12px;
-  transition: all .18s ease;
-}
-
-input::placeholder,
-textarea::placeholder {
-  color: #625d55;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  border-color: rgba(215,174,97,.36);
-  box-shadow: 0 0 0 3px rgba(215,174,97,.045);
-}
-
-select option {
-  background: #171511;
-  color: var(--text);
-}
-
-textarea {
-  min-height: 90px;
-  resize: vertical;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.field label {
-  color: var(--text-soft);
-  font-size: 11px;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 13px;
-}
-
-.form-grid-3 {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 13px;
-}
-
-.field-full {
-  grid-column: 1 / -1;
+.section-body {
+  padding: 18px;
 }
 
 .table-wrap {
@@ -608,443 +479,578 @@ textarea {
 table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 720px;
 }
 
 th {
+  color: var(--muted-2);
   text-align: left;
-  color: #706a61;
   font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: .09em;
-  font-weight: 600;
-  padding: 12px 15px;
-  border-bottom: 1px solid var(--line);
+  letter-spacing: .1em;
+  font-weight: 650;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 
 td {
-  padding: 14px 15px;
+  padding: 13px 12px;
   border-bottom: 1px solid rgba(255,255,255,.045);
-  font-size: 12px;
-  color: var(--text-soft);
+  color: #e5e0d8;
+  font-size: 13px;
   vertical-align: middle;
 }
 
 tr:last-child td {
-  border-bottom: none;
+  border-bottom: 0;
 }
 
-tbody tr {
-  transition: background .16s ease;
-}
-
-tbody tr:hover {
-  background: rgba(215,174,97,.025);
-}
-
-.primary-text {
-  color: var(--text);
-  font-weight: 600;
+tr:hover td {
+  background: rgba(255,255,255,.018);
 }
 
 .muted {
-  color: var(--text-muted);
+  color: var(--muted);
 }
 
 .gold {
-  color: var(--gold-light);
+  color: var(--gold-2);
 }
 
-.money {
-  color: #e2c27e;
-  font-variant-numeric: tabular-nums;
-}
-
-.empty {
-  padding: 55px 20px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 13px;
+.bold {
+  font-weight: 700;
 }
 
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  padding: 5px 8px;
   border-radius: 999px;
-  padding: 5px 9px;
   font-size: 10px;
-  white-space: nowrap;
-  border: 1px solid rgba(255,255,255,.07);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(255,255,255,.025);
 }
 
-.badge.new {
-  color: #dfc27f;
-  background: rgba(215,174,97,.07);
+.badge::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .8;
 }
 
-.badge.work {
-  color: #9cb1c2;
-  background: rgba(130,151,170,.08);
+.badge.gold {
+  color: var(--gold-2);
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
 }
 
-.badge.success {
-  color: #9ab393;
-  background: rgba(137,170,131,.07);
+.badge.green {
+  color: var(--success);
+  background: rgba(145,174,138,.08);
+  border-color: rgba(145,174,138,.2);
 }
 
-.badge.closed {
-  color: #9b958c;
-  background: rgba(255,255,255,.035);
+.badge.red {
+  color: var(--danger);
+  background: rgba(201,124,114,.08);
+  border-color: rgba(201,124,114,.2);
 }
 
-.badge.danger {
-  color: #d0958e;
-  background: rgba(189,119,112,.07);
+.badge.gray {
+  color: var(--muted);
 }
 
-/* =========================================================
-   MODAL
-   ========================================================= */
+.toolbar {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: #171614;
+  color: var(--text);
+  border-radius: 11px;
+  outline: none;
+  padding: 10px 12px;
+  transition: .16s ease;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--gold-line);
+  box-shadow: 0 0 0 3px rgba(199,163,106,.06);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: #6f6a62;
+}
+
+.textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.select option {
+  background: #1d1c19;
+  color: white;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.form-field {
+  display: grid;
+  gap: 6px;
+}
+
+.form-field.full {
+  grid-column: 1 / -1;
+}
+
+.form-label {
+  font-size: 11px;
+  color: var(--muted);
+}
 
 .modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(0,0,0,.68);
+  background: rgba(0,0,0,.66);
   backdrop-filter: blur(7px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   padding: 20px;
 }
 
 .modal {
-  width: min(680px, 100%);
+  width: min(720px, 100%);
   max-height: calc(100vh - 40px);
-  overflow-y: auto;
-  background:
-    linear-gradient(
-      145deg,
-      #25211c,
-      #171511
-    );
-  border: 1px solid var(--line-strong);
-  border-radius: 19px;
-  box-shadow: 0 35px 100px rgba(0,0,0,.55);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: #1b1a17;
+  box-shadow: 0 30px 100px rgba(0,0,0,.55);
 }
 
 .modal.large {
-  width: min(950px, 100%);
+  width: min(940px, 100%);
 }
 
 .modal-header {
+  padding: 19px 20px;
+  border-bottom: 1px solid var(--border);
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  align-items: center;
-  padding: 21px 23px;
-  border-bottom: 1px solid var(--line);
+  gap: 15px;
 }
 
 .modal-title {
-  font-family: Manrope, sans-serif;
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 750;
+}
+
+.modal-subtitle {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 5px;
 }
 
 .modal-body {
-  padding: 23px;
+  padding: 20px;
 }
 
 .modal-footer {
+  padding: 15px 20px;
+  border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
-  gap: 9px;
-  padding: 17px 23px;
-  border-top: 1px solid var(--line);
-}
-
-.close-button {
-  width: 31px;
-  height: 31px;
-  border: 1px solid var(--line);
-  background: transparent;
-  color: var(--text-muted);
-  border-radius: 8px;
-}
-
-.close-button:hover {
-  color: var(--text);
-  background: rgba(255,255,255,.035);
-}
-
-/* =========================================================
-   DASHBOARD
-   ========================================================= */
-
-.hero {
-  padding: 26px;
-  min-height: 180px;
-  position: relative;
-  overflow: hidden;
-}
-
-.hero::before {
-  content: "";
-  position: absolute;
-  width: 360px;
-  height: 360px;
-  right: -100px;
-  top: -190px;
-  border-radius: 50%;
-  background: rgba(215,174,97,.055);
-  filter: blur(45px);
-}
-
-.hero-title {
-  font-family: Manrope, sans-serif;
-  font-size: 27px;
-  font-weight: 800;
-  letter-spacing: -.025em;
-  position: relative;
-}
-
-.hero-text {
-  max-width: 650px;
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.7;
-  margin-top: 9px;
-  position: relative;
-}
-
-.hero-gold {
-  color: var(--gold-light);
-}
-
-/* =========================================================
-   CLIENT DETAIL
-   ========================================================= */
-
-.client-list {
-  display: grid;
   gap: 8px;
 }
 
+.close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(255,255,255,.025);
+  border-radius: 9px;
+}
+
+.close:hover {
+  color: var(--text);
+}
+
+.detail-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 15px;
+}
+
+.client-list {
+  padding: 8px;
+}
+
 .client-item {
-  padding: 14px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
   border: 1px solid transparent;
-  border-radius: 10px;
-  background: rgba(255,255,255,.018);
-  transition: all .16s ease;
-  cursor: pointer;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  margin-bottom: 4px;
 }
 
 .client-item:hover {
-  background: rgba(215,174,97,.035);
+  background: rgba(255,255,255,.03);
 }
 
-.client-item.active {
-  border-color: rgba(215,174,97,.18);
-  background: rgba(215,174,97,.065);
+.client-item.selected {
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
 }
 
 .client-name {
-  color: var(--text);
-  font-weight: 600;
+  font-weight: 650;
   font-size: 13px;
 }
 
 .client-meta {
-  margin-top: 5px;
-  color: var(--text-muted);
+  color: var(--muted);
   font-size: 10px;
+  margin-top: 4px;
 }
 
-.detail-panel {
-  min-height: 500px;
-}
-
-.detail-tabs {
+.stat-line {
   display: flex;
-  gap: 5px;
-  border-bottom: 1px solid var(--line);
-  padding: 0 20px;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(255,255,255,.045);
 }
 
-.detail-tab {
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  padding: 13px 10px;
-  border-bottom: 2px solid transparent;
+.stat-line:last-child {
+  border-bottom: 0;
 }
 
-.detail-tab.active {
-  color: var(--gold-light);
-  border-bottom-color: var(--gold);
+.stat-line span:first-child {
+  color: var(--muted);
+  font-size: 12px;
 }
 
-/* =========================================================
-   REPORT
-   ========================================================= */
+.stat-line span:last-child {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.loading {
+  padding: 50px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 25px;
+  background:
+    radial-gradient(
+      circle at 50% 10%,
+      rgba(199,163,106,.11),
+      transparent 34%
+    ),
+    var(--bg);
+}
+
+.login-card {
+  width: min(420px, 100%);
+  border: 1px solid var(--border);
+  background: rgba(29,28,25,.92);
+  border-radius: 24px;
+  padding: 28px;
+  box-shadow: 0 30px 90px rgba(0,0,0,.35);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.login-title {
+  font-size: 25px;
+  font-weight: 760;
+  letter-spacing: -.03em;
+}
+
+.login-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
+  line-height: 1.6;
+}
+
+.error {
+  border: 1px solid rgba(201,124,114,.28);
+  color: #e0a099;
+  background: rgba(201,124,114,.08);
+  border-radius: 11px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.success-box {
+  border: 1px solid rgba(145,174,138,.2);
+  color: #adc5a7;
+  background: rgba(145,174,138,.07);
+  border-radius: 11px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.toast-container {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 300;
+  display: grid;
+  gap: 8px;
+  width: min(380px, calc(100vw - 40px));
+}
+
+.toast {
+  border: 1px solid var(--gold-line);
+  background: #211f1b;
+  color: var(--text);
+  border-radius: 13px;
+  padding: 12px 14px;
+  box-shadow: 0 15px 50px rgba(0,0,0,.3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.toast.error-toast {
+  border-color: rgba(201,124,114,.35);
+}
+
+.search {
+  max-width: 300px;
+}
+
+.split {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+}
+
+.total-preview {
+  border: 1px solid var(--gold-line);
+  background: rgba(199,163,106,.07);
+  border-radius: 14px;
+  padding: 15px;
+}
+
+.total-preview-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.total-preview-value {
+  margin-top: 5px;
+  color: var(--gold-2);
+  font-size: 23px;
+  font-weight: 750;
+}
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 10px;
+}
+
+.quick-action {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: rgba(255,255,255,.018);
+  color: var(--text);
+  text-align: left;
+}
+
+.quick-action:hover {
+  border-color: var(--gold-line);
+  background: var(--gold-soft);
+}
+
+.quick-action-title {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.quick-action-sub {
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 4px;
+}
 
 .report-summary {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0,1fr));
   gap: 12px;
 }
 
-.report-number {
-  font-family: Manrope, sans-serif;
-  font-size: 21px;
-  font-weight: 700;
+.report-box {
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: rgba(255,255,255,.018);
+}
+
+.report-box-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.report-box-value {
+  font-size: 20px;
+  font-weight: 730;
   margin-top: 7px;
+}
+
+.mobile-menu {
+  display: none;
 }
 
 .print-only {
   display: none;
 }
 
-/* =========================================================
-   TOAST
-   ========================================================= */
-
-.toast-container {
-  position: fixed;
-  right: 22px;
-  bottom: 22px;
-  z-index: 300;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.toast {
-  min-width: 280px;
-  max-width: 400px;
-  padding: 13px 15px;
-  border-radius: 11px;
-  border: 1px solid var(--line);
-  background: #211e1a;
-  color: var(--text-soft);
-  box-shadow: 0 20px 60px rgba(0,0,0,.35);
-  font-size: 12px;
-}
-
-.toast.success {
-  border-color: rgba(137,170,131,.22);
-}
-
-.toast.error {
-  border-color: rgba(189,119,112,.25);
-}
-
-/* =========================================================
-   MOBILE
-   ========================================================= */
-
-.mobile-menu {
-  display: none;
-}
-
 @media (max-width: 1100px) {
   .grid-4 {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0,1fr));
   }
 
-  .grid-3 {
-    grid-template-columns: repeat(2, 1fr);
+  .detail-layout {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 800px) {
   .sidebar {
-    transform: translateX(-100%);
-    transition: transform .22s ease;
+    position: static;
+    width: auto;
+    margin: 10px;
+    height: auto;
   }
 
-  .sidebar.mobile-open {
-    transform: translateX(0);
+  .app {
+    display: block;
   }
 
   .main {
+    width: auto;
     margin-left: 0;
-    width: 100%;
+    padding: 18px 12px 30px;
   }
 
-  .mobile-menu {
-    display: block;
-    margin-right: 12px;
-    border: 1px solid var(--line);
-    background: transparent;
-    color: var(--text-soft);
-    width: 35px;
-    height: 35px;
-    border-radius: 9px;
-  }
-
-  .topbar {
-    padding: 0 17px;
-  }
-
-  .content {
-    padding: 20px 15px 40px;
-  }
-
-  .grid-4,
   .grid-3,
   .grid-2,
   .form-grid,
-  .form-grid-3 {
+  .form-grid-3,
+  .report-summary,
+  .quick-actions {
     grid-template-columns: 1fr;
   }
 
-  .search {
-    min-width: 0;
-    width: 100%;
+  .grid-4 {
+    grid-template-columns: 1fr 1fr;
   }
 
-  .section-header {
-    align-items: flex-start;
+  .topbar {
     flex-direction: column;
   }
 
-  .login-card {
-    padding: 30px 22px;
+  .top-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .grid-4 {
+    grid-template-columns: 1fr;
   }
 
-  .report-summary {
-    grid-template-columns: 1fr;
+  .sidebar {
+    margin: 8px;
+  }
+
+  .main {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .page-title {
+    font-size: 23px;
   }
 }
 
 @media print {
   body {
-    background: white !important;
-    color: black !important;
+    background: white;
+    color: black;
   }
 
   .sidebar,
-  .topbar,
-  .toolbar,
-  button,
-  .no-print {
+  .top-actions,
+  .no-print,
+  .button,
+  .modal-backdrop {
     display: none !important;
   }
 
   .main {
     margin: 0;
     width: 100%;
-  }
-
-  .content {
     padding: 0;
   }
 
   .card {
-    border: 1px solid #ddd;
     box-shadow: none;
+    border-color: #ddd;
     background: white;
   }
 
@@ -1053,143 +1059,90 @@ tbody tr:hover {
   }
 
   td,
-  th,
-  .primary-text,
-  .muted,
-  .money {
-    color: black !important;
+  th {
+    color: black;
+    border-color: #ddd;
   }
 }
 `;
 
-function injectStyles() {
-  if (!document.getElementById("sortex-styles")) {
-    const style = document.createElement("style");
-    style.id = "sortex-styles";
-    style.innerHTML = css;
-    document.head.appendChild(style);
-  }
-}
-
 /* =========================================================
-   HELPERS
+   Icons
    ========================================================= */
 
-const money = (value) =>
-  `${Number(value || 0).toLocaleString("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ₽`;
-
-const dateRu = (value) => {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString("ru-RU");
-};
-
-const today = () => new Date().toISOString().slice(0, 10);
-
-const firstDayOfMonth = () => {
-  const d = new Date();
-  d.setDate(1);
-  return d.toISOString().slice(0, 10);
-};
-
-const daysBetween = (start, end) => {
-  const a = new Date(`${start}T00:00:00`);
-  const b = new Date(`${end}T00:00:00`);
-  const diff = Math.ceil((b - a) / 86400000);
-  return Math.max(1, diff);
-};
-
-const volumeM3 = (length, width, height) => {
-  return (
-    (Number(length || 0) *
-      Number(width || 0) *
-      Number(height || 0)) /
-    1000000
-  );
-};
-
-const prettyEnum = (value) => {
-  if (!value) return "—";
-
-  return String(value)
-    .replaceAll("_", " ")
-    .replaceAll("-", " ")
-    .replace(/\b\w/g, (x) => x.toUpperCase());
-};
-
-const statusLabel = {
-  new: "Новая",
-  in_progress: "В работе",
-  contacted: "Связались",
-  closed: "Закрыта",
-};
-
-const statusClass = {
-  new: "new",
-  in_progress: "work",
-  contacted: "success",
-  closed: "closed",
-};
-
-function csvEscape(value) {
-  const text = String(value ?? "");
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
-function downloadCSV(filename, rows) {
-  if (!rows.length) return;
-
-  const csv = rows
-    .map((row) => row.map(csvEscape).join(";"))
-    .join("\n");
-
-  const blob = new Blob(["\uFEFF" + csv], {
-    type: "text/csv;charset=utf-8;",
-  });
-
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-
-  a.href = url;
-  a.download = filename;
-  a.click();
-
-  URL.revokeObjectURL(url);
-}
-
-/* =========================================================
-   BASIC COMPONENTS
-   ========================================================= */
-
-function Modal({
-  open,
-  title,
-  children,
-  onClose,
-  footer,
-  large = false,
-}) {
-  if (!open) return null;
+function Icon({ type }) {
+  const paths = {
+    home: "M3 10.5 12 3l9 7.5M5 9v11h14V9M9 20v-6h6v6",
+    clients:
+      "M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM19 8v6M22 11h-6",
+    products:
+      "M4 7h16M6 3h12v18H6zM9 11h6M9 15h6M9 19h3",
+    shipment:
+      "M3 7h11v10H3zM14 10h4l3 3v4h-7zM7 21a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM18 21a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
+    requests:
+      "M4 4h16v14H7l-3 3V4ZM8 8h8M8 12h6",
+    report:
+      "M4 19V5M4 19h17M8 16v-4M12 16V8M16 16v-6M20 16v-9",
+    plus: "M12 5v14M5 12h14",
+    logout:
+      "M10 17l5-5-5-5M15 12H3M21 5v14M17 3h4v18h-4",
+    search:
+      "M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15ZM16 16l5 5",
+    close: "M6 6l12 12M18 6 6 18",
+    storage:
+      "M4 5h16v14H4zM7 8h10M7 12h10M7 16h6",
+    refresh:
+      "M20 11a8 8 0 0 0-14.9-3M4 5v4h4M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4",
+  };
 
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
     >
+      <path d={paths[type] || paths.home} />
+    </svg>
+  );
+}
+
+/* =========================================================
+   Generic UI
+   ========================================================= */
+
+function Button({ children, onClick, variant = "", small = false, type = "button", disabled = false }) {
+  return (
+    <button
+      type={type}
+      disabled={disabled}
+      className={`button ${variant} ${small ? "small" : ""}`}
+      onClick={onClick}
+      style={{ opacity: disabled ? 0.5 : 1 }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Modal({ title, subtitle, onClose, children, footer, large = false }) {
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => {
+      if (e.target === e.currentTarget) onClose();
+    }}>
       <div className={`modal ${large ? "large" : ""}`}>
         <div className="modal-header">
-          <div className="modal-title">{title}</div>
-
-          <button
-            className="close-button"
-            onClick={onClose}
-            type="button"
-          >
-            ×
+          <div>
+            <div className="modal-title">{title}</div>
+            {subtitle && <div className="modal-subtitle">{subtitle}</div>}
+          </div>
+          <button className="close" onClick={onClose}>
+            <Icon type="close" />
           </button>
         </div>
 
@@ -1201,31 +1154,40 @@ function Modal({
   );
 }
 
-function Field({
-  label,
-  children,
-  full = false,
-}) {
-  return (
-    <div className={`field ${full ? "field-full" : ""}`}>
-      <label>{label}</label>
-      {children}
-    </div>
-  );
+function StatusBadge({ value, request = false }) {
+  let label = value;
+
+  if (request) {
+    label =
+      REQUEST_STATUSES.find((x) => x.value === value)?.label || value;
+  } else {
+    label =
+      [
+        ...OPERATION_STATUSES,
+        ...STORAGE_STATUSES,
+        ...TARIFF_TYPES,
+      ].find((x) => x.value === value)?.label || value;
+  }
+
+  let cls = "gray";
+
+  if (["active", "completed", "contacted"].includes(value)) cls = "green";
+  if (["cancelled", "closed"].includes(value)) cls = "red";
+  if (["new", "planned", "in_progress"].includes(value)) cls = "gold";
+
+  return <span className={`badge ${cls}`}>{label}</span>;
 }
 
-function Badge({ status }) {
-  const label = statusLabel[status] || prettyEnum(status);
+function Loading() {
+  return <div className="loading">Загрузка данных…</div>;
+}
 
-  return (
-    <span className={`badge ${statusClass[status] || "closed"}`}>
-      {label}
-    </span>
-  );
+function Empty({ text = "Нет данных" }) {
+  return <div className="empty">{text}</div>;
 }
 
 /* =========================================================
-   LOGIN
+   Login
    ========================================================= */
 
 function Login({ onLogin }) {
@@ -1234,93 +1196,89 @@ function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function submit(e) {
+  const submit = async (e) => {
     e.preventDefault();
+
+    if (!supabase) {
+      setError("Не настроены VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY.");
+      return;
+    }
 
     setError("");
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError(error.message);
-    } else {
-      onLogin();
-    }
+    const { data, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
     setLoading(false);
-  }
+
+    if (authError) {
+      setError(authError.message);
+      return;
+    }
+
+    onLogin(data.session);
+  };
 
   return (
-    <div className="login-screen">
+    <div className="login">
       <div className="login-card">
-        <div className="login-logo">
-          <div className="logo-mark">SX</div>
-
-          <div className="login-title">
-            SORTEX
+        <div className="login-brand">
+          <div className="brand-mark">
+            <span />
           </div>
-
-          <div className="login-subtitle">
-            Warehouse Management System
+          <div>
+            <div className="brand-title">SORTEX WMS</div>
+            <div className="brand-subtitle">Warehouse management</div>
           </div>
         </div>
 
-        <form
-          onSubmit={submit}
-          style={{
-            display: "grid",
-            gap: 14,
-          }}
-        >
-          <Field label="E-mail">
+        <div className="login-title">Вход в систему</div>
+        <div className="login-subtitle">
+          Закрытая административная панель SORTEX.
+        </div>
+
+        <form onSubmit={submit} style={{ marginTop: 25 }}>
+          <div className="form-field">
+            <label className="form-label">Email</label>
             <input
+              className="input"
               type="email"
-              placeholder="admin@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
+              placeholder="admin@example.com"
               required
             />
-          </Field>
+          </div>
 
-          <Field label="Пароль">
+          <div className="form-field" style={{ marginTop: 12 }}>
+            <label className="form-label">Пароль</label>
             <input
+              className="input"
               type="password"
-              placeholder="Введите пароль"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              placeholder="••••••••"
               required
             />
-          </Field>
+          </div>
 
           {error && (
-            <div
-              style={{
-                color: "#d0958e",
-                fontSize: 11,
-                lineHeight: 1.5,
-              }}
-            >
+            <div className="error" style={{ marginTop: 13 }}>
               {error}
             </div>
           )}
 
           <button
-            className="primary"
+            className="button"
             type="submit"
             disabled={loading}
-            style={{
-              width: "100%",
-              marginTop: 6,
-              height: 44,
-            }}
+            style={{ width: "100%", marginTop: 16 }}
           >
-            {loading ? "Вход..." : "Войти в систему"}
+            {loading ? "Вход…" : "Войти"}
           </button>
         </form>
       </div>
@@ -1329,130 +1287,28 @@ function Login({ onLogin }) {
 }
 
 /* =========================================================
-   SIDEBAR
-   ========================================================= */
-
-const navItems = [
-  ["dashboard", "Главная", "⌂"],
-  ["clients", "Клиенты", "◉"],
-  ["products", "Товары", "▦"],
-  ["shipments", "Отгрузка", "↗"],
-  ["requests", "Заявки", "◇"],
-  ["reports", "Отчет", "▤"],
-];
-
-function Sidebar({
-  page,
-  setPage,
-  user,
-  onLogout,
-  mobileOpen,
-  setMobileOpen,
-}) {
-  return (
-    <aside
-      className={`sidebar ${
-        mobileOpen ? "mobile-open" : ""
-      }`}
-    >
-      <div className="brand">
-        <div className="brand-symbol">SX</div>
-
-        <div>
-          <div className="brand-name">
-            SORTEX
-          </div>
-
-          <div className="brand-caption">
-            WAREHOUSE SYSTEM
-          </div>
-        </div>
-      </div>
-
-      <nav className="nav">
-        <div className="nav-section-title">
-          Управление
-        </div>
-
-        {navItems.map(([id, label, icon]) => (
-          <button
-            key={id}
-            type="button"
-            className={`nav-button ${
-              page === id ? "active" : ""
-            }`}
-            onClick={() => {
-              setPage(id);
-              setMobileOpen(false);
-            }}
-          >
-            <span className="nav-icon">
-              {icon}
-            </span>
-
-            <span>{label}</span>
-          </button>
-        ))}
-      </nav>
-
-      <div className="sidebar-bottom">
-        <div className="user-card">
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--text-soft)",
-              marginBottom: 4,
-            }}
-          >
-            Администратор
-          </div>
-
-          <div className="user-email">
-            {user?.email}
-          </div>
-        </div>
-
-        <button
-          className="nav-button"
-          type="button"
-          onClick={onLogout}
-        >
-          <span className="nav-icon">↪</span>
-          Выйти
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-/* =========================================================
-   DASHBOARD
+   Dashboard
    ========================================================= */
 
 function Dashboard({
   clients,
-  products,
   shipments,
   storage,
   requests,
   loading,
+  onAddShipment,
+  onAddStorage,
+  onAddClient,
+  onNavigate,
 }) {
   const monthStart = firstDayOfMonth();
 
-  const monthShipments = useMemo(
-    () =>
-      shipments.filter(
-        (x) => x.shipment_date >= monthStart
-      ),
-    [shipments, monthStart]
+  const monthShipments = shipments.filter(
+    (x) => x.shipment_date >= monthStart
   );
 
-  const monthStorage = useMemo(
-    () =>
-      storage.filter(
-        (x) => x.start_date >= monthStart
-      ),
-    [storage, monthStart]
+  const monthStorage = storage.filter(
+    (x) => x.start_date <= today() && x.end_date >= monthStart
   );
 
   const shipmentRevenue = monthShipments.reduce(
@@ -1465,270 +1321,181 @@ function Dashboard({
     0
   );
 
-  const newRequests = requests.filter(
-    (x) => x.status === "new"
-  ).length;
+  const activeClients = clients.filter((x) => x.is_active).length;
+
+  const newRequests = requests.filter((x) => x.status === "new").length;
+
+  if (loading) return <Loading />;
 
   return (
     <>
-      <div className="card hero">
-        <div className="hero-title">
-          Добро пожаловать в{" "}
-          <span className="hero-gold">
-            SORTEX WMS
-          </span>
+      <div className="topbar">
+        <div>
+          <h1 className="page-title">Главная</h1>
+          <div className="page-subtitle">
+            Операционный центр SORTEX WMS
+          </div>
         </div>
 
-        <div className="hero-text">
-          Управление клиентами, товарами, тарифами,
-          хранением, отгрузками и заявками —
-          в одной рабочей системе.
+        <div className="top-actions">
+          <Button onClick={onAddClient}>
+            <Icon type="plus" /> Клиент
+          </Button>
+          <Button onClick={onAddShipment}>
+            <Icon type="plus" /> Отгрузка
+          </Button>
         </div>
       </div>
-
-      <div style={{ height: 18 }} />
 
       <div className="grid grid-4">
-        <div className="card stat-card">
-          <div className="stat-label">
-            Активные клиенты
+        <div className="card kpi">
+          <div className="kpi-label">Оборот за месяц</div>
+          <div className="kpi-value">
+            {money(shipmentRevenue + storageRevenue)}
           </div>
+          <div className="kpi-foot">Отгрузки + хранение</div>
+        </div>
 
-          <div className="stat-value">
-            {loading ? "—" : clients.length}
-          </div>
+        <div className="card kpi">
+          <div className="kpi-label">Активные клиенты</div>
+          <div className="kpi-value">{activeClients}</div>
+          <div className="kpi-foot">В базе клиентов</div>
+        </div>
 
-          <div className="stat-description">
-            Клиентская база SORTEX
+        <div className="card kpi">
+          <div className="kpi-label">Отгрузки</div>
+          <div className="kpi-value">{monthShipments.length}</div>
+          <div className="kpi-foot">С начала месяца</div>
+        </div>
+
+        <div className="card kpi">
+          <div className="kpi-label">Новые заявки</div>
+          <div className="kpi-value">{newRequests}</div>
+          <div className="kpi-foot">Требуют обработки</div>
+        </div>
+      </div>
+
+      <div className="section card">
+        <div className="section-header">
+          <div>
+            <div className="section-title">Быстрые действия</div>
+            <div className="section-subtitle">
+              Основные операции склада
+            </div>
           </div>
         </div>
 
-        <div className="card stat-card">
-          <div className="stat-label">
-            Отгрузки за месяц
-          </div>
+        <div className="section-body">
+          <div className="quick-actions">
+            <button className="quick-action" onClick={onAddShipment}>
+              <div className="quick-action-title">Новая отгрузка</div>
+              <div className="quick-action-sub">
+                Рассчитать и сохранить услугу
+              </div>
+            </button>
 
-          <div className="stat-value money">
-            {money(shipmentRevenue)}
-          </div>
+            <button className="quick-action" onClick={onAddStorage}>
+              <div className="quick-action-title">Новое хранение</div>
+              <div className="quick-action-sub">
+                м³ или количество единиц
+              </div>
+            </button>
 
-          <div className="stat-description">
-            {monthShipments.length} операций
-          </div>
-        </div>
-
-        <div className="card stat-card">
-          <div className="stat-label">
-            Хранение за месяц
-          </div>
-
-          <div className="stat-value money">
-            {money(storageRevenue)}
-          </div>
-
-          <div className="stat-description">
-            {monthStorage.length} записей
-          </div>
-        </div>
-
-        <div className="card stat-card">
-          <div className="stat-label">
-            Новые заявки
-          </div>
-
-          <div className="stat-value">
-            {newRequests}
-          </div>
-
-          <div className="stat-description">
-            Требуют обработки
+            <button
+              className="quick-action"
+              onClick={() => onNavigate("requests")}
+            >
+              <div className="quick-action-title">Заявки</div>
+              <div className="quick-action-sub">
+                Проверить входящие обращения
+              </div>
+            </button>
           </div>
         </div>
       </div>
 
-      <div style={{ height: 18 }} />
-
-      <div className="grid grid-2">
+      <div className="grid grid-2 section">
         <div className="card">
-          <div className="card-padding">
-            <div className="section-header">
-              <div>
-                <div className="section-title">
-                  Последние заявки
-                </div>
-
-                <div className="section-description">
-                  Последние обращения клиентов
-                </div>
-              </div>
+          <div className="section-header">
+            <div>
+              <div className="section-title">Последние отгрузки</div>
+              <div className="section-subtitle">Операции</div>
             </div>
-
-            {requests.length === 0 ? (
-              <div className="empty">
-                Заявок пока нет
-              </div>
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Клиент</th>
-                      <th>Телефон</th>
-                      <th>Статус</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {requests
-                      .slice(0, 5)
-                      .map((request) => (
-                        <tr key={request.id}>
-                          <td>
-                            <div className="primary-text">
-                              {request.name}
-                            </div>
-
-                            <div className="muted">
-                              {dateRu(
-                                request.created_at
-                              )}
-                            </div>
-                          </td>
-
-                          <td>{request.phone}</td>
-
-                          <td>
-                            <Badge
-                              status={request.status}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <Button small variant="secondary" onClick={() => onNavigate("shipments")}>
+              Все
+            </Button>
           </div>
-        </div>
 
-        <div className="card">
-          <div className="card-padding">
-            <div className="section-header">
-              <div>
-                <div className="section-title">
-                  Последние отгрузки
-                </div>
-
-                <div className="section-description">
-                  Операции текущего периода
-                </div>
-              </div>
-            </div>
-
+          <div className="section-body" style={{ padding: 0 }}>
             {shipments.length === 0 ? (
-              <div className="empty">
-                Отгрузок пока нет
-              </div>
+              <Empty />
             ) : (
               <div className="table-wrap">
                 <table>
                   <thead>
                     <tr>
                       <th>Дата</th>
+                      <th>Клиент</th>
                       <th>Количество</th>
                       <th>Сумма</th>
                     </tr>
                   </thead>
-
                   <tbody>
-                    {shipments
-                      .slice(0, 5)
-                      .map((shipment) => (
-                        <tr key={shipment.id}>
-                          <td>
-                            {dateRu(
-                              shipment.shipment_date
-                            )}
-                          </td>
-
-                          <td>
-                            {shipment.quantity}
-                          </td>
-
-                          <td className="money">
-                            {money(
-                              shipment.total_rub
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                    {shipments.slice(0, 5).map((x) => (
+                      <tr key={x.id}>
+                        <td>{formatDate(x.shipment_date)}</td>
+                        <td>{x.client_name || "—"}</td>
+                        <td>{number(x.quantity)}</td>
+                        <td className="gold bold">{money(x.total_rub)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
         </div>
-      </div>
 
-      <div style={{ height: 18 }} />
-
-      <div className="card card-padding">
-        <div className="section-title">
-          Состояние системы
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(3, 1fr)",
-            gap: 12,
-            marginTop: 15,
-          }}
-        >
-          <div>
-            <div className="muted">
-              Товары
+        <div className="card">
+          <div className="section-header">
+            <div>
+              <div className="section-title">Новые заявки</div>
+              <div className="section-subtitle">Входящие обращения</div>
             </div>
-
-            <div
-              style={{
-                marginTop: 6,
-                fontSize: 20,
-              }}
-            >
-              {products.length}
-            </div>
+            <Button small variant="secondary" onClick={() => onNavigate("requests")}>
+              Все
+            </Button>
           </div>
 
-          <div>
-            <div className="muted">
-              Все заявки
-            </div>
-
-            <div
-              style={{
-                marginTop: 6,
-                fontSize: 20,
-              }}
-            >
-              {requests.length}
-            </div>
-          </div>
-
-          <div>
-            <div className="muted">
-              Все отгрузки
-            </div>
-
-            <div
-              style={{
-                marginTop: 6,
-                fontSize: 20,
-              }}
-            >
-              {shipments.length}
-            </div>
+          <div className="section-body" style={{ padding: 0 }}>
+            {requests.length === 0 ? (
+              <Empty />
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Дата</th>
+                      <th>Имя</th>
+                      <th>Компания</th>
+                      <th>Статус</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requests.slice(0, 5).map((x) => (
+                      <tr key={x.id}>
+                        <td>{formatDate(x.created_at)}</td>
+                        <td>{x.name}</td>
+                        <td>{x.company_name || "—"}</td>
+                        <td>
+                          <StatusBadge value={x.status} request />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1737,7 +1504,7 @@ function Dashboard({
 }
 
 /* =========================================================
-   CLIENTS
+   Clients
    ========================================================= */
 
 function Clients({
@@ -1746,1671 +1513,550 @@ function Clients({
   tariffs,
   shipments,
   storage,
-  refresh,
-  notify,
+  loading,
+  selectedClientId,
+  setSelectedClientId,
+  onAddClient,
+  onAddTariff,
+  onAddShipment,
+  onAddStorage,
 }) {
-  const [selectedId, setSelectedId] =
-    useState(null);
-
   const [search, setSearch] = useState("");
 
-  const [modal, setModal] = useState(null);
+  const filteredClients = useMemo(() => {
+    const q = search.trim().toLowerCase();
 
-  const [clientForm, setClientForm] = useState({
-    name: "",
-    legal_name: "",
-    inn: "",
-    contact_name: "",
-    phone: "",
-    email: "",
-    notes: "",
-  });
+    if (!q) return clients;
 
-  const [tariffForm, setTariffForm] = useState({
-    product_id: "",
-    service_type: "",
-    price_rub: "",
-    included_weight_kg: "1",
-    extra_kg_price_rub: "8",
-    effective_from: today(),
-    effective_to: "",
-    notes: "",
-  });
-
-  const [storageForm, setStorageForm] = useState({
-    mode: "m3",
-    volume_m3: "",
-    unit_count: "",
-    start_date: today(),
-    end_date: today(),
-    price_per_m3_day_rub: "",
-    price_per_unit_day_rub: "",
-    note: "",
-  });
-
-  const filteredClients = clients.filter((client) => {
-    const q = search.toLowerCase();
-
-    return (
-      client.name?.toLowerCase().includes(q) ||
-      client.legal_name
-        ?.toLowerCase()
-        .includes(q) ||
-      client.inn?.toLowerCase().includes(q)
+    return clients.filter((x) =>
+      [
+        x.name,
+        x.legal_name,
+        x.inn,
+        x.contact_name,
+        x.phone,
+        x.email,
+      ]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q))
     );
-  });
+  }, [clients, search]);
 
   const selectedClient =
-    clients.find((x) => x.id === selectedId) ||
-    null;
+    clients.find((x) => x.id === selectedClientId) ||
+    filteredClients[0] ||
+    clients[0];
 
-  const selectedProducts = products.filter(
-    (x) => x.client_id === selectedId
-  );
-
-  const selectedTariffs = tariffs.filter(
-    (x) => x.client_id === selectedId
-  );
-
-  const selectedShipments = shipments.filter(
-    (x) => x.client_id === selectedId
-  );
-
-  const selectedStorage = storage.filter(
-    (x) => x.client_id === selectedId
-  );
-
-  const clientRevenue =
-    selectedShipments.reduce(
-      (sum, x) =>
-        sum + Number(x.total_rub || 0),
-      0
-    ) +
-    selectedStorage.reduce(
-      (sum, x) =>
-        sum + Number(x.total_rub || 0),
-      0
-    );
-
-  async function createClient(e) {
-    e.preventDefault();
-
-    const { error } = await supabase
-      .from("clients")
-      .insert({
-        ...clientForm,
-        is_active: true,
-      });
-
-    if (error) {
-      notify(error.message, "error");
-      return;
+  useEffect(() => {
+    if (!selectedClientId && clients[0]) {
+      setSelectedClientId(clients[0].id);
     }
+  }, [clients, selectedClientId, setSelectedClientId]);
 
-    notify("Клиент добавлен");
-    setModal(null);
+  const clientProducts = products.filter(
+    (x) => x.client_id === selectedClient?.id
+  );
 
-    setClientForm({
-      name: "",
-      legal_name: "",
-      inn: "",
-      contact_name: "",
-      phone: "",
-      email: "",
-      notes: "",
-    });
+  const clientTariffs = tariffs.filter(
+    (x) => x.client_id === selectedClient?.id
+  );
 
-    refresh();
-  }
+  const clientShipments = shipments.filter(
+    (x) => x.client_id === selectedClient?.id
+  );
 
-  async function createTariff(e) {
-    e.preventDefault();
+  const clientStorage = storage.filter(
+    (x) => x.client_id === selectedClient?.id
+  );
 
-    if (!selectedId) return;
+  const shipmentTotal = clientShipments.reduce(
+    (sum, x) => sum + Number(x.total_rub || 0),
+    0
+  );
 
-    const payload = {
-      client_id: selectedId,
-      product_id:
-        tariffForm.product_id || null,
-      service_type:
-        tariffForm.service_type,
-      price_rub:
-        Number(tariffForm.price_rub || 0),
-      included_weight_kg:
-        Number(
-          tariffForm.included_weight_kg || 1
-        ),
-      extra_kg_price_rub:
-        Number(
-          tariffForm.extra_kg_price_rub || 0
-        ),
-      effective_from:
-        tariffForm.effective_from,
-      effective_to:
-        tariffForm.effective_to || null,
-      notes: tariffForm.notes || null,
-      enabled: true,
-    };
-
-    const { error } = await supabase
-      .from("service_tariffs")
-      .insert(payload);
-
-    if (error) {
-      notify(error.message, "error");
-      return;
-    }
-
-    notify("Тариф сохранён");
-    setModal(null);
-    refresh();
-  }
-
-  async function createStorage(e) {
-    e.preventDefault();
-
-    if (!selectedId) return;
-
-    const days = daysBetween(
-      storageForm.start_date,
-      storageForm.end_date
-    );
-
-    const volume =
-      storageForm.mode === "m3"
-        ? Number(storageForm.volume_m3 || 0)
-        : 0;
-
-    const units =
-      storageForm.mode === "unit"
-        ? Number(storageForm.unit_count || 0)
-        : 0;
-
-    const m3Price =
-      Number(
-        storageForm.price_per_m3_day_rub || 0
-      );
-
-    const unitPrice =
-      Number(
-        storageForm.price_per_unit_day_rub || 0
-      );
-
-    const total =
-      storageForm.mode === "m3"
-        ? volume * days * m3Price
-        : units * days * unitPrice;
-
-    const { error } = await supabase
-      .from("storage_records")
-      .insert({
-        client_id: selectedId,
-        volume_m3: volume,
-        start_date: storageForm.start_date,
-        end_date: storageForm.end_date,
-        price_per_m3_day_rub: m3Price,
-        total_rub: total,
-        unit_count: units,
-        price_per_unit_day_rub: unitPrice,
-        note: storageForm.note || null,
-      });
-
-    if (error) {
-      notify(error.message, "error");
-      return;
-    }
-
-    notify("Хранение добавлено");
-    setModal(null);
-    refresh();
-  }
+  const storageTotal = clientStorage.reduce(
+    (sum, x) => sum + Number(x.total_rub || 0),
+    0
+  );
 
   return (
     <>
-      <div className="grid grid-2">
-        <div className="card">
-          <div className="card-padding">
-            <div className="section-header">
-              <div>
-                <div className="section-title">
-                  Клиенты
-                </div>
-
-                <div className="section-description">
-                  Клиентская база и условия работы
-                </div>
-              </div>
-
-              <button
-                className="primary"
-                onClick={() => setModal("client")}
-              >
-                + Клиент
-              </button>
-            </div>
-
-            <div style={{ marginBottom: 13 }}>
-              <input
-                className="search"
-                placeholder="Поиск клиента..."
-                value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
-              />
-            </div>
-
-            <div className="client-list">
-              {filteredClients.map((client) => (
-                <div
-                  key={client.id}
-                  className={`client-item ${
-                    selectedId === client.id
-                      ? "active"
-                      : ""
-                  }`}
-                  onClick={() =>
-                    setSelectedId(client.id)
-                  }
-                >
-                  <div className="client-name">
-                    {client.name}
-                  </div>
-
-                  <div className="client-meta">
-                    {client.inn
-                      ? `ИНН ${client.inn}`
-                      : "ИНН не указан"}
-                    {" · "}
-                    {client.phone ||
-                      "Телефон не указан"}
-                  </div>
-                </div>
-              ))}
-
-              {!filteredClients.length && (
-                <div className="empty">
-                  Клиенты не найдены
-                </div>
-              )}
-            </div>
+      <div className="topbar">
+        <div>
+          <h1 className="page-title">Клиенты</h1>
+          <div className="page-subtitle">
+            Клиенты, товары и персональные тарифы
           </div>
         </div>
 
-        <div className="card detail-panel">
-          {!selectedClient ? (
-            <div className="empty">
-              Выберите клиента слева
-            </div>
-          ) : (
-            <>
-              <div className="card-padding">
-                <div className="section-header">
-                  <div>
-                    <div className="section-title">
-                      {selectedClient.name}
-                    </div>
-
-                    <div className="section-description">
-                      {selectedClient.legal_name ||
-                        "Карточка клиента"}
-                    </div>
-                  </div>
-
-                  <div className="toolbar">
-                    <button
-                      className="secondary small"
-                      onClick={() =>
-                        setModal("tariff")
-                      }
-                    >
-                      + Тариф
-                    </button>
-
-                    <button
-                      className="primary small"
-                      onClick={() =>
-                        setModal("storage")
-                      }
-                    >
-                      + Хранение
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-3">
-                  <div>
-                    <div className="muted">
-                      Контакт
-                    </div>
-
-                    <div
-                      className="primary-text"
-                      style={{ marginTop: 5 }}
-                    >
-                      {selectedClient.contact_name ||
-                        "—"}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="muted">
-                      Телефон
-                    </div>
-
-                    <div
-                      className="primary-text"
-                      style={{ marginTop: 5 }}
-                    >
-                      {selectedClient.phone ||
-                        "—"}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="muted">
-                      Оборот
-                    </div>
-
-                    <div
-                      className="money"
-                      style={{
-                        marginTop: 5,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {money(clientRevenue)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="detail-tabs">
-                <div className="detail-tab active">
-                  Обзор
-                </div>
-              </div>
-
-              <div className="card-padding">
-                <div className="grid grid-3">
-                  <div className="card card-padding">
-                    <div className="muted">
-                      Товары
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 23,
-                        marginTop: 7,
-                      }}
-                    >
-                      {selectedProducts.length}
-                    </div>
-                  </div>
-
-                  <div className="card card-padding">
-                    <div className="muted">
-                      Тарифы
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 23,
-                        marginTop: 7,
-                      }}
-                    >
-                      {selectedTariffs.length}
-                    </div>
-                  </div>
-
-                  <div className="card card-padding">
-                    <div className="muted">
-                      Отгрузки
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 23,
-                        marginTop: 7,
-                      }}
-                    >
-                      {selectedShipments.length}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ height: 18 }} />
-
-                <div className="section-title">
-                  Тарифы клиента
-                </div>
-
-                <div style={{ height: 10 }} />
-
-                {selectedTariffs.length === 0 ? (
-                  <div className="empty">
-                    Тарифы ещё не добавлены
-                  </div>
-                ) : (
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Услуга</th>
-                          <th>Товар</th>
-                          <th>Цена</th>
-                          <th>С</th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {selectedTariffs.map(
-                          (tariff) => {
-                            const product =
-                              products.find(
-                                (p) =>
-                                  p.id ===
-                                  tariff.product_id
-                              );
-
-                            return (
-                              <tr key={tariff.id}>
-                                <td>
-                                  {prettyEnum(
-                                    tariff.service_type
-                                  )}
-                                </td>
-
-                                <td>
-                                  {product?.name ||
-                                    "Для клиента"}
-                                </td>
-
-                                <td className="money">
-                                  {money(
-                                    tariff.price_rub
-                                  )}
-                                </td>
-
-                                <td>
-                                  {dateRu(
-                                    tariff.effective_from
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          }
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                <div style={{ height: 18 }} />
-
-                <div className="section-title">
-                  Последнее хранение
-                </div>
-
-                <div style={{ height: 10 }} />
-
-                {selectedStorage.length === 0 ? (
-                  <div className="empty">
-                    Записей хранения нет
-                  </div>
-                ) : (
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Период</th>
-                          <th>Объём</th>
-                          <th>Сумма</th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {selectedStorage
-                          .slice(0, 5)
-                          .map((item) => (
-                            <tr key={item.id}>
-                              <td>
-                                {dateRu(
-                                  item.start_date
-                                )}
-                                {" — "}
-                                {dateRu(
-                                  item.end_date
-                                )}
-                              </td>
-
-                              <td>
-                                {Number(
-                                  item.volume_m3 || 0
-                                ).toFixed(3)}{" "}
-                                м³
-                                {item.unit_count
-                                  ? ` · ${item.unit_count} шт.`
-                                  : ""}
-                              </td>
-
-                              <td className="money">
-                                {money(
-                                  item.total_rub
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+        <div className="top-actions">
+          <div className="search">
+            <input
+              className="input"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Поиск клиента…"
+            />
+          </div>
+          <Button onClick={onAddClient}>
+            <Icon type="plus" /> Добавить
+          </Button>
         </div>
       </div>
 
-      <Modal
-        open={modal === "client"}
-        title="Новый клиент"
-        onClose={() => setModal(null)}
-        footer={
-          <>
-            <button
-              className="secondary"
-              onClick={() => setModal(null)}
-            >
-              Отмена
-            </button>
+      {loading ? (
+        <Loading />
+      ) : (
+        <div className="detail-layout">
+          <div className="card">
+            <div className="section-header">
+              <div>
+                <div className="section-title">Список клиентов</div>
+                <div className="section-subtitle">
+                  {filteredClients.length} клиентов
+                </div>
+              </div>
+            </div>
 
-            <button
-              className="primary"
-              form="client-form"
-            >
-              Сохранить
-            </button>
-          </>
-        }
-      >
-        <form id="client-form" onSubmit={createClient}>
-          <div className="form-grid">
-            <Field label="Название">
-              <input
-                required
-                value={clientForm.name}
-                onChange={(e) =>
-                  setClientForm({
-                    ...clientForm,
-                    name: e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Юридическое название">
-              <input
-                value={clientForm.legal_name}
-                onChange={(e) =>
-                  setClientForm({
-                    ...clientForm,
-                    legal_name:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="ИНН">
-              <input
-                value={clientForm.inn}
-                onChange={(e) =>
-                  setClientForm({
-                    ...clientForm,
-                    inn: e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Контактное лицо">
-              <input
-                value={clientForm.contact_name}
-                onChange={(e) =>
-                  setClientForm({
-                    ...clientForm,
-                    contact_name:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Телефон">
-              <input
-                value={clientForm.phone}
-                onChange={(e) =>
-                  setClientForm({
-                    ...clientForm,
-                    phone: e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="E-mail">
-              <input
-                type="email"
-                value={clientForm.email}
-                onChange={(e) =>
-                  setClientForm({
-                    ...clientForm,
-                    email: e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Заметка" full>
-              <textarea
-                value={clientForm.notes}
-                onChange={(e) =>
-                  setClientForm({
-                    ...clientForm,
-                    notes: e.target.value,
-                  })
-                }
-              />
-            </Field>
+            <div className="client-list">
+              {filteredClients.length === 0 ? (
+                <Empty text="Клиенты не найдены" />
+              ) : (
+                filteredClients.map((client) => (
+                  <button
+                    key={client.id}
+                    className={`client-item ${
+                      selectedClient?.id === client.id ? "selected" : ""
+                    }`}
+                    onClick={() => setSelectedClientId(client.id)}
+                  >
+                    <div className="client-name">{client.name}</div>
+                    <div className="client-meta">
+                      {client.inn || client.phone || "Без реквизитов"}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
-        </form>
-      </Modal>
 
-      <Modal
-        open={modal === "tariff"}
-        title="Тариф клиента"
-        onClose={() => setModal(null)}
-        footer={
-          <>
-            <button
-              className="secondary"
-              onClick={() => setModal(null)}
-            >
-              Отмена
-            </button>
+          <div className="grid" style={{ alignContent: "start" }}>
+            {!selectedClient ? (
+              <div className="card">
+                <Empty text="Выберите клиента" />
+              </div>
+            ) : (
+              <>
+                <div className="card">
+                  <div className="section-header">
+                    <div>
+                      <div className="section-title">
+                        {selectedClient.name}
+                      </div>
+                      <div className="section-subtitle">
+                        {selectedClient.legal_name ||
+                          "Карточка клиента"}
+                      </div>
+                    </div>
 
-            <button
-              className="primary"
-              form="tariff-form"
-            >
-              Сохранить тариф
-            </button>
-          </>
-        }
-      >
-        <form id="tariff-form" onSubmit={createTariff}>
-          <div className="form-grid">
-            <Field label="Товар">
-              <select
-                value={tariffForm.product_id}
-                onChange={(e) =>
-                  setTariffForm({
-                    ...tariffForm,
-                    product_id:
-                      e.target.value,
-                  })
-                }
-              >
-                <option value="">
-                  Для всего клиента
-                </option>
+                    <div className="toolbar">
+                      <Button
+                        small
+                        onClick={() =>
+                          onAddShipment(selectedClient.id)
+                        }
+                      >
+                        + Отгрузка
+                      </Button>
+                      <Button
+                        small
+                        onClick={() =>
+                          onAddStorage(selectedClient.id)
+                        }
+                      >
+                        + Хранение
+                      </Button>
+                    </div>
+                  </div>
 
-                {selectedProducts.map(
-                  (product) => (
-                    <option
-                      key={product.id}
-                      value={product.id}
+                  <div className="section-body">
+                    <div className="grid grid-3">
+                      <div>
+                        <div className="muted" style={{ fontSize: 11 }}>
+                          Контакт
+                        </div>
+                        <div style={{ marginTop: 5 }}>
+                          {selectedClient.contact_name || "—"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="muted" style={{ fontSize: 11 }}>
+                          Телефон
+                        </div>
+                        <div style={{ marginTop: 5 }}>
+                          {selectedClient.phone || "—"}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="muted" style={{ fontSize: 11 }}>
+                          Email
+                        </div>
+                        <div style={{ marginTop: 5 }}>
+                          {selectedClient.email || "—"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-3" style={{ marginTop: 18 }}>
+                      <div className="report-box">
+                        <div className="report-box-label">
+                          Отгрузки
+                        </div>
+                        <div className="report-box-value">
+                          {money(shipmentTotal)}
+                        </div>
+                      </div>
+
+                      <div className="report-box">
+                        <div className="report-box-label">
+                          Хранение
+                        </div>
+                        <div className="report-box-value">
+                          {money(storageTotal)}
+                        </div>
+                      </div>
+
+                      <div className="report-box">
+                        <div className="report-box-label">
+                          Всего операций
+                        </div>
+                        <div className="report-box-value">
+                          {clientShipments.length +
+                            clientStorage.length}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="section-header">
+                    <div>
+                      <div className="section-title">Товары</div>
+                      <div className="section-subtitle">
+                        {clientProducts.length} позиций
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="section-body" style={{ padding: 0 }}>
+                    {clientProducts.length === 0 ? (
+                      <Empty text="У клиента пока нет товаров" />
+                    ) : (
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>SKU</th>
+                              <th>Название</th>
+                              <th>Размер</th>
+                              <th>Вес</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {clientProducts.map((p) => (
+                              <tr key={p.id}>
+                                <td className="gold">{p.sku}</td>
+                                <td>{p.name}</td>
+                                <td>
+                                  {p.length_cm &&
+                                  p.width_cm &&
+                                  p.height_cm
+                                    ? `${p.length_cm} × ${p.width_cm} × ${p.height_cm} см`
+                                    : "—"}
+                                </td>
+                                <td>
+                                  {p.weight_kg
+                                    ? `${number(p.weight_kg)} кг`
+                                    : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="section-header">
+                    <div>
+                      <div className="section-title">Тарифы</div>
+                      <div className="section-subtitle">
+                        Тарифы клиента
+                      </div>
+                    </div>
+
+                    <Button
+                      small
+                      onClick={() =>
+                        onAddTariff(selectedClient.id)
+                      }
                     >
-                      {product.sku} —{" "}
-                      {product.name}
-                    </option>
-                  )
-                )}
-              </select>
-            </Field>
+                      <Icon type="plus" /> Тариф
+                    </Button>
+                  </div>
 
-            <Field label="Тип услуги">
-              <input
-                required
-                placeholder="например: fulfillment"
-                value={tariffForm.service_type}
-                onChange={(e) =>
-                  setTariffForm({
-                    ...tariffForm,
-                    service_type:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
+                  <div className="section-body" style={{ padding: 0 }}>
+                    {clientTariffs.length === 0 ? (
+                      <Empty text="Тарифы ещё не добавлены" />
+                    ) : (
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Услуга</th>
+                              <th>Товар</th>
+                              <th>Цена</th>
+                              <th>Включённый вес</th>
+                              <th>Доп. кг</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {clientTariffs.map((t) => {
+                              const product = products.find(
+                                (p) => p.id === t.product_id
+                              );
 
-            <Field label="Цена, ₽">
-              <input
-                type="number"
-                step="0.01"
-                required
-                value={tariffForm.price_rub}
-                onChange={(e) =>
-                  setTariffForm({
-                    ...tariffForm,
-                    price_rub:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Включённый вес, кг">
-              <input
-                type="number"
-                step="0.01"
-                value={
-                  tariffForm.included_weight_kg
-                }
-                onChange={(e) =>
-                  setTariffForm({
-                    ...tariffForm,
-                    included_weight_kg:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Доп. кг, ₽">
-              <input
-                type="number"
-                step="0.01"
-                value={
-                  tariffForm.extra_kg_price_rub
-                }
-                onChange={(e) =>
-                  setTariffForm({
-                    ...tariffForm,
-                    extra_kg_price_rub:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Дата начала">
-              <input
-                type="date"
-                value={
-                  tariffForm.effective_from
-                }
-                onChange={(e) =>
-                  setTariffForm({
-                    ...tariffForm,
-                    effective_from:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Дата окончания">
-              <input
-                type="date"
-                value={
-                  tariffForm.effective_to
-                }
-                onChange={(e) =>
-                  setTariffForm({
-                    ...tariffForm,
-                    effective_to:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Примечание" full>
-              <textarea
-                value={tariffForm.notes}
-                onChange={(e) =>
-                  setTariffForm({
-                    ...tariffForm,
-                    notes: e.target.value,
-                  })
-                }
-              />
-            </Field>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        open={modal === "storage"}
-        title={`Хранение — ${selectedClient?.name || ""}`}
-        onClose={() => setModal(null)}
-        footer={
-          <>
-            <button
-              className="secondary"
-              onClick={() => setModal(null)}
-            >
-              Отмена
-            </button>
-
-            <button
-              className="primary"
-              form="storage-form"
-            >
-              Добавить хранение
-            </button>
-          </>
-        }
-      >
-        <form id="storage-form" onSubmit={createStorage}>
-          <div className="form-grid">
-            <Field label="Расчёт">
-              <select
-                value={storageForm.mode}
-                onChange={(e) =>
-                  setStorageForm({
-                    ...storageForm,
-                    mode: e.target.value,
-                  })
-                }
-              >
-                <option value="m3">
-                  По м³
-                </option>
-
-                <option value="unit">
-                  По единицам
-                </option>
-              </select>
-            </Field>
-
-            {storageForm.mode === "m3" ? (
-              <Field label="Объём, м³">
-                <input
-                  type="number"
-                  step="0.001"
-                  required
-                  value={
-                    storageForm.volume_m3
-                  }
-                  onChange={(e) =>
-                    setStorageForm({
-                      ...storageForm,
-                      volume_m3:
-                        e.target.value,
-                    })
-                  }
-                />
-              </Field>
-            ) : (
-              <Field label="Количество единиц">
-                <input
-                  type="number"
-                  required
-                  value={
-                    storageForm.unit_count
-                  }
-                  onChange={(e) =>
-                    setStorageForm({
-                      ...storageForm,
-                      unit_count:
-                        e.target.value,
-                    })
-                  }
-                />
-              </Field>
+                              return (
+                                <tr key={t.id}>
+                                  <td>
+                                    {SERVICE_TYPES.find(
+                                      (s) =>
+                                        s.value === t.service_type
+                                    )?.label || t.service_type}
+                                  </td>
+                                  <td>
+                                    {product?.name ||
+                                      (t.product_id
+                                        ? "Товар"
+                                        : "Для клиента")}
+                                  </td>
+                                  <td className="gold bold">
+                                    {money(t.price_rub)}
+                                  </td>
+                                  <td>
+                                    {number(t.included_weight_kg)} кг
+                                  </td>
+                                  <td>
+                                    {money(t.extra_kg_price_rub)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
-
-            <Field label="Начало">
-              <input
-                type="date"
-                required
-                value={storageForm.start_date}
-                onChange={(e) =>
-                  setStorageForm({
-                    ...storageForm,
-                    start_date:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Окончание">
-              <input
-                type="date"
-                required
-                value={storageForm.end_date}
-                onChange={(e) =>
-                  setStorageForm({
-                    ...storageForm,
-                    end_date:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            {storageForm.mode === "m3" ? (
-              <Field label="Цена за м³ / день, ₽">
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={
-                    storageForm.price_per_m3_day_rub
-                  }
-                  onChange={(e) =>
-                    setStorageForm({
-                      ...storageForm,
-                      price_per_m3_day_rub:
-                        e.target.value,
-                    })
-                  }
-                />
-              </Field>
-            ) : (
-              <Field label="Цена за единицу / день, ₽">
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={
-                    storageForm.price_per_unit_day_rub
-                  }
-                  onChange={(e) =>
-                    setStorageForm({
-                      ...storageForm,
-                      price_per_unit_day_rub:
-                        e.target.value,
-                    })
-                  }
-                />
-              </Field>
-            )}
-
-            <Field label="Примечание" full>
-              <textarea
-                value={storageForm.note}
-                onChange={(e) =>
-                  setStorageForm({
-                    ...storageForm,
-                    note: e.target.value,
-                  })
-                }
-              />
-            </Field>
           </div>
-        </form>
-      </Modal>
+        </div>
+      )}
     </>
   );
 }
 
 /* =========================================================
-   PRODUCTS
+   Products
    ========================================================= */
 
 function Products({
   products,
   clients,
-  refresh,
-  notify,
+  loading,
+  onAddProduct,
 }) {
   const [search, setSearch] = useState("");
-  const [modal, setModal] = useState(false);
 
-  const [form, setForm] = useState({
-    client_id: "",
-    sku: "",
-    name: "",
-    length_cm: "",
-    width_cm: "",
-    height_cm: "",
-    weight_kg: "",
-    notes: "",
-  });
-
-  const filtered = products.filter((product) => {
-    const client = clients.find(
-      (x) => x.id === product.client_id
-    );
-
-    const q = search.toLowerCase();
+  const filtered = products.filter((p) => {
+    const q = search.toLowerCase().trim();
+    if (!q) return true;
 
     return (
-      product.sku
-        ?.toLowerCase()
-        .includes(q) ||
-      product.name
-        ?.toLowerCase()
-        .includes(q) ||
-      client?.name
-        ?.toLowerCase()
+      p.sku?.toLowerCase().includes(q) ||
+      p.name?.toLowerCase().includes(q) ||
+      clients
+        .find((c) => c.id === p.client_id)
+        ?.name?.toLowerCase()
         .includes(q)
     );
   });
 
-  async function createProduct(e) {
-    e.preventDefault();
-
-    const { error } = await supabase
-      .from("products")
-      .insert({
-        client_id: form.client_id,
-        sku: form.sku,
-        name: form.name,
-        length_cm:
-          Number(form.length_cm || 0) ||
-          null,
-        width_cm:
-          Number(form.width_cm || 0) ||
-          null,
-        height_cm:
-          Number(form.height_cm || 0) ||
-          null,
-        weight_kg:
-          Number(form.weight_kg || 0) ||
-          null,
-        notes: form.notes || null,
-        is_active: true,
-      });
-
-    if (error) {
-      notify(error.message, "error");
-      return;
-    }
-
-    notify("Товар добавлен");
-    setModal(false);
-
-    setForm({
-      client_id: "",
-      sku: "",
-      name: "",
-      length_cm: "",
-      width_cm: "",
-      height_cm: "",
-      weight_kg: "",
-      notes: "",
-    });
-
-    refresh();
-  }
-
   return (
     <>
-      <div className="card">
-        <div className="card-padding">
-          <div className="section-header">
-            <div>
-              <div className="section-title">
-                Товары
-              </div>
+      <div className="topbar">
+        <div>
+          <h1 className="page-title">Товары</h1>
+          <div className="page-subtitle">
+            Товары клиентов и параметры хранения
+          </div>
+        </div>
 
-              <div className="section-description">
-                SKU, размеры, вес и принадлежность
-                клиенту
-              </div>
-            </div>
-
-            <div className="toolbar">
-              <input
-                className="search"
-                placeholder="Поиск товара..."
-                value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
-              />
-
-              <button
-                className="primary"
-                onClick={() => setModal(true)}
-              >
-                + Товар
-              </button>
-            </div>
+        <div className="top-actions">
+          <div className="search">
+            <input
+              className="input"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="SKU, название, клиент…"
+            />
           </div>
 
+          <Button onClick={onAddProduct}>
+            <Icon type="plus" /> Товар
+          </Button>
+        </div>
+      </div>
+
+      <div className="card">
+        {loading ? (
+          <Loading />
+        ) : filtered.length === 0 ? (
+          <Empty text="Товары не найдены" />
+        ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>SKU</th>
-                  <th>Товар</th>
+                  <th>Название</th>
                   <th>Клиент</th>
-                  <th>Размер</th>
-                  <th>Вес</th>
+                  <th>Габариты</th>
                   <th>Объём</th>
+                  <th>Вес</th>
+                  <th>Статус</th>
                 </tr>
               </thead>
 
               <tbody>
-                {filtered.map((product) => {
+                {filtered.map((p) => {
                   const client = clients.find(
-                    (x) =>
-                      x.id ===
-                      product.client_id
+                    (c) => c.id === p.client_id
                   );
 
-                  const vol = volumeM3(
-                    product.length_cm,
-                    product.width_cm,
-                    product.height_cm
-                  );
+                  const volume =
+                    Number(p.length_cm || 0) *
+                    Number(p.width_cm || 0) *
+                    Number(p.height_cm || 0) /
+                    1000000;
 
                   return (
-                    <tr key={product.id}>
+                    <tr key={p.id}>
+                      <td className="gold bold">{p.sku}</td>
+                      <td>{p.name}</td>
+                      <td>{client?.name || "—"}</td>
                       <td>
-                        <span className="primary-text">
-                          {product.sku}
-                        </span>
-                      </td>
-
-                      <td>
-                        {product.name}
-                      </td>
-
-                      <td>
-                        {client?.name || "—"}
-                      </td>
-
-                      <td>
-                        {product.length_cm
-                          ? `${product.length_cm} × ${product.width_cm} × ${product.height_cm} см`
+                        {p.length_cm &&
+                        p.width_cm &&
+                        p.height_cm
+                          ? `${p.length_cm} × ${p.width_cm} × ${p.height_cm} см`
                           : "—"}
                       </td>
-
                       <td>
-                        {product.weight_kg
-                          ? `${product.weight_kg} кг`
+                        {volume
+                          ? `${number(volume)} м³`
                           : "—"}
                       </td>
-
                       <td>
-                        {vol
-                          ? `${vol.toFixed(4)} м³`
+                        {p.weight_kg
+                          ? `${number(p.weight_kg)} кг`
                           : "—"}
+                      </td>
+                      <td>
+                        {p.is_active ? (
+                          <StatusBadge value="active" />
+                        ) : (
+                          <StatusBadge value="cancelled" />
+                        )}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-
-            {!filtered.length && (
-              <div className="empty">
-                Товары не найдены
-              </div>
-            )}
           </div>
-        </div>
+        )}
       </div>
-
-      <Modal
-        open={modal}
-        title="Новый товар"
-        onClose={() => setModal(false)}
-        footer={
-          <>
-            <button
-              className="secondary"
-              onClick={() => setModal(false)}
-            >
-              Отмена
-            </button>
-
-            <button
-              className="primary"
-              form="product-form"
-            >
-              Сохранить
-            </button>
-          </>
-        }
-      >
-        <form id="product-form" onSubmit={createProduct}>
-          <div className="form-grid">
-            <Field label="Клиент">
-              <select
-                required
-                value={form.client_id}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    client_id:
-                      e.target.value,
-                  })
-                }
-              >
-                <option value="">
-                  Выберите клиента
-                </option>
-
-                {clients.map((client) => (
-                  <option
-                    key={client.id}
-                    value={client.id}
-                  >
-                    {client.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="SKU">
-              <input
-                required
-                value={form.sku}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    sku: e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Название" full>
-              <input
-                required
-                value={form.name}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    name: e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Длина, см">
-              <input
-                type="number"
-                step="0.01"
-                value={form.length_cm}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    length_cm:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Ширина, см">
-              <input
-                type="number"
-                step="0.01"
-                value={form.width_cm}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    width_cm:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Высота, см">
-              <input
-                type="number"
-                step="0.01"
-                value={form.height_cm}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    height_cm:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Вес, кг">
-              <input
-                type="number"
-                step="0.001"
-                value={form.weight_kg}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    weight_kg:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Примечание" full>
-              <textarea
-                value={form.notes}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    notes: e.target.value,
-                  })
-                }
-              />
-            </Field>
-          </div>
-        </form>
-      </Modal>
     </>
   );
 }
 
 /* =========================================================
-   SHIPMENTS
+   Shipments
    ========================================================= */
 
 function Shipments({
   shipments,
   clients,
   products,
-  tariffs,
-  enums,
-  refresh,
-  notify,
+  loading,
+  onAddShipment,
 }) {
-  const [modal, setModal] = useState(false);
   const [search, setSearch] = useState("");
 
-  const [form, setForm] = useState({
-    client_id: "",
-    product_id: "",
-    shipment_date: today(),
-    quantity: "1",
-    weight_kg: "",
-    tariff_type: "",
-    tariff_id: "",
-    unit_price_rub: "",
-    included_weight_kg: "1",
-    extra_kg_price_rub: "8",
-    receiving_enabled: false,
-    receiving_unit_price_rub: "5",
-    note: "",
+  const filtered = shipments.filter((s) => {
+    const client = clients.find((c) => c.id === s.client_id);
+    const product = products.find((p) => p.id === s.product_id);
+    const q = search.toLowerCase().trim();
+
+    if (!q) return true;
+
+    return (
+      client?.name?.toLowerCase().includes(q) ||
+      product?.name?.toLowerCase().includes(q) ||
+      product?.sku?.toLowerCase().includes(q) ||
+      s.shipment_date?.includes(q)
+    );
   });
-
-  const clientProducts = products.filter(
-    (x) => x.client_id === form.client_id
-  );
-
-  const clientTariffs = tariffs.filter(
-    (x) =>
-      x.client_id === form.client_id &&
-      x.enabled !== false &&
-      (!x.product_id ||
-        x.product_id === form.product_id)
-  );
-
-  const tariffTypes =
-    enums.tariff_type || [];
-
-  const shipmentTotal = useMemo(() => {
-    const quantity = Number(
-      form.quantity || 0
-    );
-
-    const weight = Number(
-      form.weight_kg || 0
-    );
-
-    const price = Number(
-      form.unit_price_rub || 0
-    );
-
-    const included =
-      Number(
-        form.included_weight_kg || 0
-      ) * quantity;
-
-    const extraWeight = Math.max(
-      0,
-      weight - included
-    );
-
-    const extra =
-      extraWeight *
-      Number(form.extra_kg_price_rub || 0);
-
-    const receiving = form.receiving_enabled
-      ? quantity *
-        Number(
-          form.receiving_unit_price_rub || 0
-        )
-      : 0;
-
-    return quantity * price + extra + receiving;
-  }, [form]);
-
-  function chooseTariff(id) {
-    const tariff = clientTariffs.find(
-      (x) => x.id === id
-    );
-
-    if (!tariff) {
-      setForm({
-        ...form,
-        tariff_id: "",
-      });
-
-      return;
-    }
-
-    setForm({
-      ...form,
-      tariff_id: id,
-      unit_price_rub:
-        tariff.price_rub ?? "",
-      included_weight_kg:
-        tariff.included_weight_kg ??
-        "1",
-      extra_kg_price_rub:
-        tariff.extra_kg_price_rub ??
-        "8",
-    });
-  }
-
-  function resetForm() {
-    setForm({
-      client_id: "",
-      product_id: "",
-      shipment_date: today(),
-      quantity: "1",
-      weight_kg: "",
-      tariff_type:
-        tariffTypes[0] || "",
-      tariff_id: "",
-      unit_price_rub: "",
-      included_weight_kg: "1",
-      extra_kg_price_rub: "8",
-      receiving_enabled: false,
-      receiving_unit_price_rub: "5",
-      note: "",
-    });
-  }
-
-  async function createShipment(e) {
-    e.preventDefault();
-
-    if (!form.client_id || !form.product_id) {
-      notify(
-        "Выберите клиента и товар",
-        "error"
-      );
-      return;
-    }
-
-    if (!form.tariff_type) {
-      notify(
-        "Укажите тип тарифа отгрузки",
-        "error"
-      );
-      return;
-    }
-
-    const quantity = Number(
-      form.quantity || 0
-    );
-
-    const weight = Number(
-      form.weight_kg || 0
-    );
-
-    const includedTotal =
-      Number(
-        form.included_weight_kg || 0
-      ) * quantity;
-
-    const extraWeight = Math.max(
-      0,
-      weight - includedTotal
-    );
-
-    const extraKgRub =
-      extraWeight *
-      Number(form.extra_kg_price_rub || 0);
-
-    const receivingTotal = form.receiving_enabled
-      ? quantity *
-        Number(
-          form.receiving_unit_price_rub || 0
-        )
-      : 0;
-
-    const total =
-      quantity *
-        Number(form.unit_price_rub || 0) +
-      extraKgRub +
-      receivingTotal;
-
-    const { error } = await supabase
-      .from("shipments")
-      .insert({
-        client_id: form.client_id,
-        product_id: form.product_id,
-        shipment_date:
-          form.shipment_date,
-        quantity,
-        tariff_type:
-          form.tariff_type,
-        unit_price_rub:
-          Number(form.unit_price_rub || 0),
-        total_rub: total,
-        note: form.note || null,
-        weight_kg: weight,
-        base_unit_price_rub:
-          Number(form.unit_price_rub || 0),
-        included_weight_kg:
-          Number(
-            form.included_weight_kg || 0
-          ),
-        extra_kg_price_rub:
-          Number(
-            form.extra_kg_price_rub || 0
-          ),
-        extra_kg_rub:
-          extraKgRub,
-        receiving_enabled:
-          form.receiving_enabled,
-        receiving_unit_price_rub:
-          Number(
-            form.receiving_unit_price_rub || 0
-          ),
-        receiving_total_rub:
-          receivingTotal,
-      });
-
-    if (error) {
-      notify(error.message, "error");
-      return;
-    }
-
-    notify("Отгрузка добавлена");
-    setModal(false);
-    resetForm();
-    refresh();
-  }
-
-  const filtered = shipments.filter(
-    (shipment) => {
-      const client = clients.find(
-        (x) => x.id === shipment.client_id
-      );
-
-      const product = products.find(
-        (x) => x.id === shipment.product_id
-      );
-
-      const q = search.toLowerCase();
-
-      return (
-        client?.name
-          ?.toLowerCase()
-          .includes(q) ||
-        product?.name
-          ?.toLowerCase()
-          .includes(q) ||
-        product?.sku
-          ?.toLowerCase()
-          .includes(q)
-      );
-    }
-  );
 
   return (
     <>
-      <div className="card">
-        <div className="card-padding">
-          <div className="section-header">
-            <div>
-              <div className="section-title">
-                Отгрузка
-              </div>
+      <div className="topbar">
+        <div>
+          <h1 className="page-title">Отгрузка</h1>
+          <div className="page-subtitle">
+            Отгрузки, приёмка и стоимость услуг
+          </div>
+        </div>
 
-              <div className="section-description">
-                Добавление операций и автоматический
-                расчёт стоимости услуг
-              </div>
-            </div>
-
-            <div className="toolbar">
-              <input
-                className="search"
-                placeholder="Поиск..."
-                value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
-              />
-
-              <button
-                className="primary"
-                onClick={() => {
-                  resetForm();
-                  setModal(true);
-                }}
-              >
-                + Отгрузка
-              </button>
-            </div>
+        <div className="top-actions">
+          <div className="search">
+            <input
+              className="input"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Поиск…"
+            />
           </div>
 
+          <Button onClick={() => onAddShipment()}>
+            <Icon type="plus" /> Новая отгрузка
+          </Button>
+        </div>
+      </div>
+
+      <div className="card">
+        {loading ? (
+          <Loading />
+        ) : filtered.length === 0 ? (
+          <Empty text="Отгрузок пока нет" />
+        ) : (
           <div className="table-wrap">
             <table>
               <thead>
@@ -3418,557 +2064,114 @@ function Shipments({
                   <th>Дата</th>
                   <th>Клиент</th>
                   <th>Товар</th>
-                  <th>Кол-во</th>
+                  <th>Количество</th>
                   <th>Вес</th>
-                  <th>Тип</th>
+                  <th>Тариф</th>
                   <th>Сумма</th>
+                  <th>Статус</th>
                 </tr>
               </thead>
 
               <tbody>
-                {filtered.map((shipment) => {
+                {filtered.map((s) => {
                   const client = clients.find(
-                    (x) =>
-                      x.id ===
-                      shipment.client_id
+                    (c) => c.id === s.client_id
                   );
 
                   const product = products.find(
-                    (x) =>
-                      x.id ===
-                      shipment.product_id
+                    (p) => p.id === s.product_id
                   );
 
                   return (
-                    <tr key={shipment.id}>
+                    <tr key={s.id}>
+                      <td>{formatDate(s.shipment_date)}</td>
+                      <td>{client?.name || "—"}</td>
                       <td>
-                        {dateRu(
-                          shipment.shipment_date
+                        <div>{product?.name || "—"}</div>
+                        {product?.sku && (
+                          <div className="muted" style={{ fontSize: 10 }}>
+                            {product.sku}
+                          </div>
                         )}
                       </td>
-
+                      <td>{number(s.quantity)}</td>
                       <td>
-                        {client?.name || "—"}
+                        {s.weight_kg
+                          ? `${number(s.weight_kg)} кг`
+                          : "—"}
                       </td>
-
                       <td>
-                        <div className="primary-text">
-                          {product?.name || "—"}
-                        </div>
-
-                        <div className="muted">
-                          {product?.sku || ""}
-                        </div>
+                        <StatusBadge value={s.tariff_type} />
                       </td>
-
+                      <td className="gold bold">
+                        {money(s.total_rub)}
+                      </td>
                       <td>
-                        {shipment.quantity}
-                      </td>
-
-                      <td>
-                        {Number(
-                          shipment.weight_kg || 0
-                        ).toFixed(2)}{" "}
-                        кг
-                      </td>
-
-                      <td>
-                        {prettyEnum(
-                          shipment.tariff_type
-                        )}
-                      </td>
-
-                      <td className="money">
-                        {money(
-                          shipment.total_rub
-                        )}
+                        <StatusBadge value={s.status} />
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-
-            {!filtered.length && (
-              <div className="empty">
-                Отгрузок нет
-              </div>
-            )}
           </div>
-        </div>
+        )}
       </div>
-
-      <Modal
-        open={modal}
-        title="Новая отгрузка"
-        onClose={() => setModal(false)}
-        large
-        footer={
-          <>
-            <button
-              className="secondary"
-              onClick={() => setModal(false)}
-            >
-              Отмена
-            </button>
-
-            <button
-              className="primary"
-              form="shipment-form"
-            >
-              Создать отгрузку
-            </button>
-          </>
-        }
-      >
-        <form
-          id="shipment-form"
-          onSubmit={createShipment}
-        >
-          <div className="form-grid-3">
-            <Field label="Клиент">
-              <select
-                required
-                value={form.client_id}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    client_id:
-                      e.target.value,
-                    product_id: "",
-                    tariff_id: "",
-                    unit_price_rub: "",
-                  })
-                }
-              >
-                <option value="">
-                  Выберите клиента
-                </option>
-
-                {clients.map((client) => (
-                  <option
-                    key={client.id}
-                    value={client.id}
-                  >
-                    {client.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Товар">
-              <select
-                required
-                disabled={!form.client_id}
-                value={form.product_id}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    product_id:
-                      e.target.value,
-                    tariff_id: "",
-                    unit_price_rub: "",
-                  })
-                }
-              >
-                <option value="">
-                  Выберите товар
-                </option>
-
-                {clientProducts.map(
-                  (product) => (
-                    <option
-                      key={product.id}
-                      value={product.id}
-                    >
-                      {product.sku} —{" "}
-                      {product.name}
-                    </option>
-                  )
-                )}
-              </select>
-            </Field>
-
-            <Field label="Дата">
-              <input
-                type="date"
-                value={form.shipment_date}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    shipment_date:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Тип тарифа">
-              {tariffTypes.length ? (
-                <select
-                  required
-                  value={form.tariff_type}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      tariff_type:
-                        e.target.value,
-                    })
-                  }
-                >
-                  <option value="">
-                    Выберите тип
-                  </option>
-
-                  {tariffTypes.map((value) => (
-                    <option
-                      key={value}
-                      value={value}
-                    >
-                      {prettyEnum(value)}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  required
-                  placeholder="Значение enum tariff_type"
-                  value={form.tariff_type}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      tariff_type:
-                        e.target.value,
-                    })
-                  }
-                />
-              )}
-            </Field>
-
-            <Field label="Тариф клиента">
-              <select
-                value={form.tariff_id}
-                disabled={!form.client_id}
-                onChange={(e) =>
-                  chooseTariff(
-                    e.target.value
-                  )
-                }
-              >
-                <option value="">
-                  Ручная цена
-                </option>
-
-                {clientTariffs.map(
-                  (tariff) => (
-                    <option
-                      key={tariff.id}
-                      value={tariff.id}
-                    >
-                      {prettyEnum(
-                        tariff.service_type
-                      )}{" "}
-                      —{" "}
-                      {money(
-                        tariff.price_rub
-                      )}
-                    </option>
-                  )
-                )}
-              </select>
-            </Field>
-
-            <Field label="Количество">
-              <input
-                type="number"
-                min="1"
-                required
-                value={form.quantity}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    quantity:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Вес, кг">
-              <input
-                type="number"
-                step="0.001"
-                value={form.weight_kg}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    weight_kg:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Цена за единицу, ₽">
-              <input
-                type="number"
-                step="0.01"
-                required
-                value={form.unit_price_rub}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    unit_price_rub:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Вес включённый, кг">
-              <input
-                type="number"
-                step="0.01"
-                value={
-                  form.included_weight_kg
-                }
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    included_weight_kg:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Доп. кг, ₽">
-              <input
-                type="number"
-                step="0.01"
-                value={
-                  form.extra_kg_price_rub
-                }
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    extra_kg_price_rub:
-                      e.target.value,
-                  })
-                }
-              />
-            </Field>
-
-            <Field label="Приёмка">
-              <select
-                value={
-                  form.receiving_enabled
-                    ? "yes"
-                    : "no"
-                }
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    receiving_enabled:
-                      e.target.value ===
-                      "yes",
-                  })
-                }
-              >
-                <option value="no">
-                  Нет
-                </option>
-
-                <option value="yes">
-                  Да
-                </option>
-              </select>
-            </Field>
-
-            {form.receiving_enabled && (
-              <Field label="Приёмка за единицу, ₽">
-                <input
-                  type="number"
-                  step="0.01"
-                  value={
-                    form.receiving_unit_price_rub
-                  }
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      receiving_unit_price_rub:
-                        e.target.value,
-                    })
-                  }
-                />
-              </Field>
-            )}
-
-            <Field label="Комментарий" full>
-              <textarea
-                value={form.note}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    note: e.target.value,
-                  })
-                }
-              />
-            </Field>
-          </div>
-
-          <div
-            className="card"
-            style={{
-              marginTop: 20,
-              padding: 20,
-              background:
-                "rgba(215,174,97,.045)",
-            }}
-          >
-            <div className="muted">
-              Расчёт стоимости
-            </div>
-
-            <div
-              style={{
-                marginTop: 8,
-                fontFamily: "Manrope",
-                fontWeight: 800,
-                fontSize: 30,
-                color:
-                  "var(--gold-light)",
-              }}
-            >
-              {money(shipmentTotal)}
-            </div>
-
-            <div
-              className="muted"
-              style={{
-                marginTop: 5,
-              }}
-            >
-              База + дополнительные килограммы +
-              приёмка
-            </div>
-          </div>
-        </form>
-      </Modal>
     </>
   );
 }
 
 /* =========================================================
-   REQUESTS
+   Requests
    ========================================================= */
 
 function Requests({
   requests,
   clients,
-  refresh,
-  notify,
+  loading,
+  onUpdateRequest,
 }) {
-  const [filter, setFilter] =
-    useState("all");
+  const [filter, setFilter] = useState("all");
+  const [selected, setSelected] = useState(null);
 
-  const [selected, setSelected] =
-    useState(null);
-
-  const filtered = requests.filter(
-    (request) =>
-      filter === "all" ||
-      request.status === filter
-  );
-
-  async function updateRequest(
-    id,
-    values
-  ) {
-    const {
-      data: {
-        user,
-      } = {},
-    } =
-      await supabase.auth.getUser();
-
-    const { error } = await supabase
-      .from("cooperation_requests")
-      .update({
-        ...values,
-        processed_by:
-          values.status !== "new"
-            ? user?.id || null
-            : null,
-        processed_at:
-          values.status !== "new"
-            ? new Date().toISOString()
-            : null,
-      })
-      .eq("id", id);
-
-    if (error) {
-      notify(error.message, "error");
-      return;
-    }
-
-    notify("Заявка обновлена");
-    refresh();
-
-    if (selected?.id === id) {
-      setSelected({
-        ...selected,
-        ...values,
-      });
-    }
-  }
+  const filtered =
+    filter === "all"
+      ? requests
+      : requests.filter((r) => r.status === filter);
 
   return (
     <>
-      <div className="card">
-        <div className="card-padding">
-          <div className="section-header">
-            <div>
-              <div className="section-title">
-                Заявки
-              </div>
-
-              <div className="section-description">
-                Все обращения с сайта
-              </div>
-            </div>
-
-            <div className="toolbar">
-              {[
-                ["all", "Все"],
-                ["new", "Новые"],
-                [
-                  "in_progress",
-                  "В работе",
-                ],
-                [
-                  "contacted",
-                  "Связались",
-                ],
-                ["closed", "Закрытые"],
-              ].map(([value, label]) => (
-                <button
-                  key={value}
-                  className={
-                    filter === value
-                      ? "primary small"
-                      : "secondary small"
-                  }
-                  onClick={() =>
-                    setFilter(value)
-                  }
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+      <div className="topbar">
+        <div>
+          <h1 className="page-title">Заявки</h1>
+          <div className="page-subtitle">
+            Входящие заявки на сотрудничество
           </div>
+        </div>
 
+        <div className="toolbar">
+          <select
+            className="select"
+            style={{ width: 170 }}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value="all">Все статусы</option>
+            {REQUEST_STATUSES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="card">
+        {loading ? (
+          <Loading />
+        ) : filtered.length === 0 ? (
+          <Empty text="Заявок нет" />
+        ) : (
           <div className="table-wrap">
             <table>
               <thead>
@@ -3977,698 +2180,1641 @@ function Requests({
                   <th>Имя</th>
                   <th>Компания</th>
                   <th>Телефон</th>
-                  <th>E-mail</th>
+                  <th>Клиент</th>
                   <th>Статус</th>
+                  <th></th>
                 </tr>
               </thead>
 
               <tbody>
-                {filtered.map((request) => (
-                  <tr
-                    key={request.id}
-                    onClick={() =>
-                      setSelected(request)
-                    }
-                    style={{
-                      cursor: "pointer",
-                    }}
-                  >
-                    <td>
-                      {dateRu(
-                        request.created_at
-                      )}
-                    </td>
+                {filtered.map((r) => {
+                  const client = clients.find(
+                    (c) => c.id === r.client_id
+                  );
 
-                    <td>
-                      <span className="primary-text">
-                        {request.name}
-                      </span>
-                    </td>
-
-                    <td>
-                      {request.company_name ||
-                        "—"}
-                    </td>
-
-                    <td>
-                      {request.phone}
-                    </td>
-
-                    <td>
-                      {request.email || "—"}
-                    </td>
-
-                    <td>
-                      <Badge
-                        status={request.status}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                  return (
+                    <tr key={r.id}>
+                      <td>{formatDate(r.created_at)}</td>
+                      <td>{r.name}</td>
+                      <td>{r.company_name || "—"}</td>
+                      <td>{r.phone}</td>
+                      <td>{client?.name || "—"}</td>
+                      <td>
+                        <StatusBadge value={r.status} request />
+                      </td>
+                      <td>
+                        <Button
+                          small
+                          variant="secondary"
+                          onClick={() => setSelected(r)}
+                        >
+                          Открыть
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-
-            {!filtered.length && (
-              <div className="empty">
-                Заявок нет
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <Modal
-        open={!!selected}
-        title={
-          selected
-            ? `Заявка — ${selected.name}`
-            : ""
-        }
-        onClose={() => setSelected(null)}
-        large
-        footer={
-          selected && (
-            <button
-              className="secondary"
-              onClick={() =>
-                setSelected(null)
-              }
-            >
-              Закрыть
-            </button>
-          )
-        }
-      >
-        {selected && (
-          <div>
-            <div className="grid grid-3">
-              <div>
-                <div className="muted">
-                  Имя
-                </div>
-
-                <div
-                  className="primary-text"
-                  style={{
-                    marginTop: 5,
-                  }}
-                >
-                  {selected.name}
-                </div>
-              </div>
-
-              <div>
-                <div className="muted">
-                  Телефон
-                </div>
-
-                <div
-                  className="primary-text"
-                  style={{
-                    marginTop: 5,
-                  }}
-                >
-                  {selected.phone}
-                </div>
-              </div>
-
-              <div>
-                <div className="muted">
-                  E-mail
-                </div>
-
-                <div
-                  className="primary-text"
-                  style={{
-                    marginTop: 5,
-                  }}
-                >
-                  {selected.email ||
-                    "—"}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ height: 20 }} />
-
-            <div className="form-grid">
-              <Field label="Статус">
-                <select
-                  value={selected.status}
-                  onChange={(e) =>
-                    updateRequest(
-                      selected.id,
-                      {
-                        status:
-                          e.target.value,
-                      }
-                    )
-                  }
-                >
-                  <option value="new">
-                    Новая
-                  </option>
-
-                  <option value="in_progress">
-                    В работе
-                  </option>
-
-                  <option value="contacted">
-                    Связались
-                  </option>
-
-                  <option value="closed">
-                    Закрыта
-                  </option>
-                </select>
-              </Field>
-
-              <Field label="Привязать клиента">
-                <select
-                  value={
-                    selected.client_id || ""
-                  }
-                  onChange={(e) =>
-                    updateRequest(
-                      selected.id,
-                      {
-                        client_id:
-                          e.target.value ||
-                          null,
-                      }
-                    )
-                  }
-                >
-                  <option value="">
-                    Не привязан
-                  </option>
-
-                  {clients.map((client) => (
-                    <option
-                      key={client.id}
-                      value={client.id}
-                    >
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="Сообщение" full>
-                <textarea
-                  readOnly
-                  value={
-                    selected.message ||
-                    "Сообщение не указано"
-                  }
-                />
-              </Field>
-
-              <Field label="Внутренняя заметка" full>
-                <textarea
-                  defaultValue={
-                    selected.internal_note ||
-                    ""
-                  }
-                  onBlur={(e) =>
-                    updateRequest(
-                      selected.id,
-                      {
-                        internal_note:
-                          e.target.value,
-                      }
-                    )
-                  }
-                  placeholder="Только для SORTEX"
-                />
-              </Field>
-            </div>
           </div>
         )}
-      </Modal>
+      </div>
+
+      {selected && (
+        <RequestModal
+          request={selected}
+          clients={clients}
+          onClose={() => setSelected(null)}
+          onSave={async (id, patch) => {
+            await onUpdateRequest(id, patch);
+            setSelected(null);
+          }}
+        />
+      )}
     </>
   );
 }
 
+function RequestModal({
+  request,
+  clients,
+  onClose,
+  onSave,
+}) {
+  const [status, setStatus] = useState(request.status || "new");
+  const [clientId, setClientId] = useState(request.client_id || "");
+  const [note, setNote] = useState(request.internal_note || "");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+
+    await onSave(request.id, {
+      status,
+      client_id: clientId || null,
+      internal_note: note || null,
+    });
+
+    setSaving(false);
+  };
+
+  return (
+    <Modal
+      title="Заявка"
+      subtitle={`Создана ${formatDate(request.created_at)}`}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? "Сохранение…" : "Сохранить"}
+          </Button>
+        </>
+      }
+    >
+      <div className="grid grid-2">
+        <div className="stat-line">
+          <span>Имя</span>
+          <span>{request.name}</span>
+        </div>
+
+        <div className="stat-line">
+          <span>Компания</span>
+          <span>{request.company_name || "—"}</span>
+        </div>
+
+        <div className="stat-line">
+          <span>Телефон</span>
+          <span>{request.phone}</span>
+        </div>
+
+        <div className="stat-line">
+          <span>Email</span>
+          <span>{request.email || "—"}</span>
+        </div>
+      </div>
+
+      {request.message && (
+        <div
+          style={{
+            marginTop: 17,
+            padding: 13,
+            borderRadius: 12,
+            background: "rgba(255,255,255,.025)",
+            color: "var(--muted)",
+            fontSize: 12,
+            lineHeight: 1.6,
+          }}
+        >
+          {request.message}
+        </div>
+      )}
+
+      <div className="form-grid" style={{ marginTop: 18 }}>
+        <div className="form-field">
+          <label className="form-label">Статус</label>
+          <select
+            className="select"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            {REQUEST_STATUSES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Привязать клиента</label>
+          <select
+            className="select"
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+          >
+            <option value="">Не привязывать</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field full">
+          <label className="form-label">Внутренняя заметка</label>
+          <textarea
+            className="textarea"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Заметка только для администратора…"
+          />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /* =========================================================
-   REPORTS
+   Reports
    ========================================================= */
 
 function Reports({
   clients,
   shipments,
   storage,
+  loading,
 }) {
-  const [from, setFrom] =
-    useState(firstDayOfMonth());
+  const [from, setFrom] = useState(firstDayOfMonth());
+  const [to, setTo] = useState(today());
+  const [clientId, setClientId] = useState("");
 
-  const [to, setTo] =
-    useState(today());
+  const operations = useMemo(() => {
+    const shipmentRows = shipments
+      .filter((x) => {
+        const okDate =
+          x.shipment_date >= from && x.shipment_date <= to;
+        const okClient =
+          !clientId || x.client_id === clientId;
 
-  const [clientId, setClientId] =
-    useState("");
+        return okDate && okClient;
+      })
+      .map((x) => {
+        const client = clients.find(
+          (c) => c.id === x.client_id
+        );
 
-  const reportShipments =
-    shipments.filter((item) => {
-      return (
-        item.shipment_date >= from &&
-        item.shipment_date <= to &&
-        (!clientId ||
-          item.client_id === clientId)
-      );
-    });
+        return {
+          type: "Отгрузка",
+          date: x.shipment_date,
+          client: client?.name || "—",
+          description: `Отгрузка × ${x.quantity}`,
+          amount: Number(x.total_rub || 0),
+          id: x.id,
+        };
+      });
 
-  const reportStorage =
-    storage.filter((item) => {
-      return (
-        item.start_date <= to &&
-        item.end_date >= from &&
-        (!clientId ||
-          item.client_id === clientId)
-      );
-    });
+    const storageRows = storage
+      .filter((x) => {
+        const okDate =
+          x.start_date <= to && x.end_date >= from;
+        const okClient =
+          !clientId || x.client_id === clientId;
 
-  const shipmentTotal =
-    reportShipments.reduce(
-      (sum, x) =>
-        sum + Number(x.total_rub || 0),
-      0
+        return okDate && okClient;
+      })
+      .map((x) => {
+        const client = clients.find(
+          (c) => c.id === x.client_id
+        );
+
+        return {
+          type: "Хранение",
+          date: x.start_date,
+          client: client?.name || "—",
+          description: `${number(x.volume_m3)} м³ / ${number(
+            x.unit_count
+          )} ед.`,
+          amount: Number(x.total_rub || 0),
+          id: x.id,
+        };
+      });
+
+    return [...shipmentRows, ...storageRows].sort((a, b) =>
+      String(b.date).localeCompare(String(a.date))
     );
+  }, [shipments, storage, clients, from, to, clientId]);
 
-  const storageTotal =
-    reportStorage.reduce(
-      (sum, x) =>
-        sum + Number(x.total_rub || 0),
-      0
-    );
+  const total = operations.reduce(
+    (sum, x) => sum + x.amount,
+    0
+  );
 
-  const total =
-    shipmentTotal + storageTotal;
+  const shipmentTotal = operations
+    .filter((x) => x.type === "Отгрузка")
+    .reduce((sum, x) => sum + x.amount, 0);
 
-  function exportReport() {
-    const rows = [
-      [
-        "Тип",
-        "Дата",
-        "Клиент",
-        "Описание",
-        "Количество",
-        "Сумма, ₽",
-      ],
-    ];
+  const storageTotal = operations
+    .filter((x) => x.type === "Хранение")
+    .reduce((sum, x) => sum + x.amount, 0);
 
-    reportShipments.forEach((item) => {
-      const client = clients.find(
-        (x) => x.id === item.client_id
-      );
-
-      rows.push([
-        "Отгрузка",
-        item.shipment_date,
-        client?.name || "",
-        item.product_id,
-        item.quantity,
-        Number(item.total_rub || 0)
-          .toFixed(2),
-      ]);
-    });
-
-    reportStorage.forEach((item) => {
-      const client = clients.find(
-        (x) => x.id === item.client_id
-      );
-
-      rows.push([
-        "Хранение",
-        `${item.start_date} — ${item.end_date}`,
-        client?.name || "",
-        `${item.volume_m3 || 0} м³`,
-        item.unit_count || "",
-        Number(item.total_rub || 0)
-          .toFixed(2),
-      ]);
-    });
-
-    rows.push([]);
-    rows.push([
-      "",
-      "",
-      "",
-      "ИТОГО",
-      "",
-      total.toFixed(2),
-    ]);
-
+  const exportReport = () => {
     downloadCSV(
       `sortex-report-${from}-${to}.csv`,
-      rows
+      operations.map((x) => ({
+        Дата: formatDate(x.date),
+        Тип: x.type,
+        Клиент: x.client,
+        Операция: x.description,
+        Сумма: x.amount.toFixed(2),
+        Валюта: "RUB",
+      }))
     );
-  }
+  };
 
   return (
     <>
-      <div className="card no-print">
-        <div className="card-padding">
-          <div className="section-header">
-            <div>
-              <div className="section-title">
-                Отчет
-              </div>
-
-              <div className="section-description">
-                Финансовый отчет за выбранный период
-              </div>
-            </div>
-
-            <div className="toolbar">
-              <button
-                className="secondary"
-                onClick={() =>
-                  window.print()
-                }
-              >
-                Печать / PDF
-              </button>
-
-              <button
-                className="primary"
-                onClick={exportReport}
-              >
-                Скачать CSV
-              </button>
-            </div>
+      <div className="topbar no-print">
+        <div>
+          <h1 className="page-title">Отчет</h1>
+          <div className="page-subtitle">
+            Отчет по операциям за выбранный период
           </div>
+        </div>
 
+        <div className="top-actions">
+          <Button variant="secondary" onClick={() => window.print()}>
+            Печать / PDF
+          </Button>
+          <Button onClick={exportReport}>
+            Скачать CSV
+          </Button>
+        </div>
+      </div>
+
+      <div className="card no-print">
+        <div className="section-body">
           <div className="form-grid-3">
-            <Field label="От">
+            <div className="form-field">
+              <label className="form-label">С даты</label>
               <input
+                className="input"
                 type="date"
                 value={from}
-                onChange={(e) =>
-                  setFrom(e.target.value)
-                }
+                onChange={(e) => setFrom(e.target.value)}
               />
-            </Field>
+            </div>
 
-            <Field label="До">
+            <div className="form-field">
+              <label className="form-label">По дату</label>
               <input
+                className="input"
                 type="date"
                 value={to}
-                onChange={(e) =>
-                  setTo(e.target.value)
-                }
+                onChange={(e) => setTo(e.target.value)}
               />
-            </Field>
+            </div>
 
-            <Field label="Клиент">
+            <div className="form-field">
+              <label className="form-label">Клиент</label>
               <select
+                className="select"
                 value={clientId}
-                onChange={(e) =>
-                  setClientId(e.target.value)
-                }
+                onChange={(e) => setClientId(e.target.value)}
               >
-                <option value="">
-                  Все клиенты
-                </option>
-
-                {clients.map((client) => (
-                  <option
-                    key={client.id}
-                    value={client.id}
-                  >
-                    {client.name}
+                <option value="">Все клиенты</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
                   </option>
                 ))}
               </select>
-            </Field>
+            </div>
           </div>
         </div>
       </div>
 
-      <div style={{ height: 18 }} />
+      {loading ? (
+        <Loading />
+      ) : (
+        <>
+          <div className="report-summary section">
+            <div className="report-box">
+              <div className="report-box-label">
+                Всего
+              </div>
+              <div className="report-box-value gold">
+                {money(total)}
+              </div>
+            </div>
 
-      <div className="print-only">
-        <h1>SORTEX WMS</h1>
-        <p>
-          Отчёт за {dateRu(from)} —{" "}
-          {dateRu(to)}
-        </p>
-      </div>
+            <div className="report-box">
+              <div className="report-box-label">
+                Отгрузки
+              </div>
+              <div className="report-box-value">
+                {money(shipmentTotal)}
+              </div>
+            </div>
 
-      <div className="report-summary">
-        <div className="card card-padding">
-          <div className="muted">
-            Отгрузки
+            <div className="report-box">
+              <div className="report-box-label">
+                Хранение
+              </div>
+              <div className="report-box-value">
+                {money(storageTotal)}
+              </div>
+            </div>
           </div>
 
-          <div className="report-number money">
-            {money(shipmentTotal)}
-          </div>
-
-          <div className="muted">
-            {reportShipments.length} операций
-          </div>
-        </div>
-
-        <div className="card card-padding">
-          <div className="muted">
-            Хранение
-          </div>
-
-          <div className="report-number money">
-            {money(storageTotal)}
-          </div>
-
-          <div className="muted">
-            {reportStorage.length} записей
-          </div>
-        </div>
-
-        <div className="card card-padding">
-          <div className="muted">
-            Общая сумма
-          </div>
-
-          <div className="report-number money">
-            {money(total)}
-          </div>
-
-          <div className="muted">
-            За выбранный период
-          </div>
-        </div>
-      </div>
-
-      <div style={{ height: 18 }} />
-
-      <div className="card">
-        <div className="card-padding">
-          <div className="section-title">
-            Операции
-          </div>
-
-          <div style={{ height: 12 }} />
-
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Тип</th>
-                  <th>Дата</th>
-                  <th>Клиент</th>
-                  <th>Описание</th>
-                  <th>Количество</th>
-                  <th>Сумма</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {reportShipments.map(
-                  (item) => {
-                    const client =
-                      clients.find(
-                        (x) =>
-                          x.id ===
-                          item.client_id
-                      );
-
-                    return (
-                      <tr key={`s-${item.id}`}>
-                        <td>
-                          <span className="badge work">
-                            Отгрузка
-                          </span>
-                        </td>
-
-                        <td>
-                          {dateRu(
-                            item.shipment_date
-                          )}
-                        </td>
-
-                        <td>
-                          {client?.name ||
-                            "—"}
-                        </td>
-
-                        <td>
-                          Операция отгрузки
-                        </td>
-
-                        <td>
-                          {item.quantity}
-                        </td>
-
-                        <td className="money">
-                          {money(
-                            item.total_rub
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  }
-                )}
-
-                {reportStorage.map(
-                  (item) => {
-                    const client =
-                      clients.find(
-                        (x) =>
-                          x.id ===
-                          item.client_id
-                      );
-
-                    return (
-                      <tr key={`st-${item.id}`}>
-                        <td>
-                          <span className="badge new">
-                            Хранение
-                          </span>
-                        </td>
-
-                        <td>
-                          {dateRu(
-                            item.start_date
-                          )}
-                        </td>
-
-                        <td>
-                          {client?.name ||
-                            "—"}
-                        </td>
-
-                        <td>
-                          {Number(
-                            item.volume_m3 ||
-                              0
-                          ).toFixed(3)}{" "}
-                          м³
-                          {item.unit_count
-                            ? ` / ${item.unit_count} шт.`
-                            : ""}
-                        </td>
-
-                        <td>
-                          —
-                        </td>
-
-                        <td className="money">
-                          {money(
-                            item.total_rub
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  }
-                )}
-              </tbody>
-            </table>
-
-            {!reportShipments.length &&
-              !reportStorage.length && (
-                <div className="empty">
-                  За выбранный период операций
-                  нет
+          <div className="card section">
+            <div className="section-header">
+              <div>
+                <div className="section-title">
+                  Операции
                 </div>
-              )}
+                <div className="section-subtitle">
+                  {formatDate(from)} — {formatDate(to)}
+                </div>
+              </div>
+            </div>
+
+            {operations.length === 0 ? (
+              <Empty text="За выбранный период операций нет" />
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Дата</th>
+                      <th>Тип</th>
+                      <th>Клиент</th>
+                      <th>Операция</th>
+                      <th>Сумма</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {operations.map((x) => (
+                      <tr key={`${x.type}-${x.id}`}>
+                        <td>{formatDate(x.date)}</td>
+                        <td>{x.type}</td>
+                        <td>{x.client}</td>
+                        <td>{x.description}</td>
+                        <td className="gold bold">
+                          {money(x.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        </div>
-      </div>
+
+          <div className="print-only">
+            <h2>SORTEX WMS — Отчет</h2>
+            <p>
+              Период: {formatDate(from)} — {formatDate(to)}
+            </p>
+            <p>Всего: {money(total)}</p>
+          </div>
+        </>
+      )}
     </>
   );
 }
 
 /* =========================================================
-   APP
+   Client Modal
+   ========================================================= */
+
+function ClientModal({ onClose, onSave }) {
+  const [form, setForm] = useState({
+    name: "",
+    legal_name: "",
+    inn: "",
+    contact_name: "",
+    phone: "",
+    email: "",
+    notes: "",
+    is_active: true,
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const set = (key, value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  const save = async () => {
+    if (!form.name.trim()) return;
+
+    setSaving(true);
+    await onSave({
+      ...form,
+      name: form.name.trim(),
+      legal_name: form.legal_name || null,
+      inn: form.inn || null,
+      contact_name: form.contact_name || null,
+      phone: form.phone || null,
+      email: form.email || null,
+      notes: form.notes || null,
+    });
+    setSaving(false);
+  };
+
+  return (
+    <Modal
+      title="Новый клиент"
+      subtitle="Добавление клиента в SORTEX WMS"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? "Сохранение…" : "Создать клиента"}
+          </Button>
+        </>
+      }
+    >
+      <div className="form-grid">
+        <div className="form-field">
+          <label className="form-label">Название *</label>
+          <input
+            className="input"
+            value={form.name}
+            onChange={(e) => set("name", e.target.value)}
+            placeholder="ООО Клиент"
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Юридическое название</label>
+          <input
+            className="input"
+            value={form.legal_name}
+            onChange={(e) => set("legal_name", e.target.value)}
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">ИНН</label>
+          <input
+            className="input"
+            value={form.inn}
+            onChange={(e) => set("inn", e.target.value)}
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Контактное лицо</label>
+          <input
+            className="input"
+            value={form.contact_name}
+            onChange={(e) =>
+              set("contact_name", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Телефон</label>
+          <input
+            className="input"
+            value={form.phone}
+            onChange={(e) => set("phone", e.target.value)}
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Email</label>
+          <input
+            className="input"
+            type="email"
+            value={form.email}
+            onChange={(e) => set("email", e.target.value)}
+          />
+        </div>
+
+        <div className="form-field full">
+          <label className="form-label">Заметки</label>
+          <textarea
+            className="textarea"
+            value={form.notes}
+            onChange={(e) => set("notes", e.target.value)}
+          />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* =========================================================
+   Product Modal
+   ========================================================= */
+
+function ProductModal({
+  clients,
+  defaultClientId = "",
+  onClose,
+  onSave,
+}) {
+  const [form, setForm] = useState({
+    client_id: defaultClientId,
+    sku: "",
+    name: "",
+    length_cm: "",
+    width_cm: "",
+    height_cm: "",
+    weight_kg: "",
+    notes: "",
+    is_active: true,
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const set = (key, value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  const save = async () => {
+    if (!form.client_id || !form.sku.trim() || !form.name.trim()) {
+      return;
+    }
+
+    setSaving(true);
+
+    await onSave({
+      client_id: form.client_id,
+      sku: form.sku.trim(),
+      name: form.name.trim(),
+      length_cm: form.length_cm
+        ? Number(form.length_cm)
+        : null,
+      width_cm: form.width_cm
+        ? Number(form.width_cm)
+        : null,
+      height_cm: form.height_cm
+        ? Number(form.height_cm)
+        : null,
+      weight_kg: form.weight_kg
+        ? Number(form.weight_kg)
+        : null,
+      notes: form.notes || null,
+      is_active: true,
+    });
+
+    setSaving(false);
+  };
+
+  return (
+    <Modal
+      title="Новый товар"
+      subtitle="Добавление товара клиента"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? "Сохранение…" : "Создать товар"}
+          </Button>
+        </>
+      }
+    >
+      <div className="form-grid">
+        <div className="form-field full">
+          <label className="form-label">Клиент *</label>
+          <select
+            className="select"
+            value={form.client_id}
+            onChange={(e) =>
+              set("client_id", e.target.value)
+            }
+          >
+            <option value="">Выберите клиента</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">SKU *</label>
+          <input
+            className="input"
+            value={form.sku}
+            onChange={(e) => set("sku", e.target.value)}
+            placeholder="SKU-001"
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Название *</label>
+          <input
+            className="input"
+            value={form.name}
+            onChange={(e) => set("name", e.target.value)}
+            placeholder="Товар"
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Длина, см</label>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            value={form.length_cm}
+            onChange={(e) =>
+              set("length_cm", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Ширина, см</label>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            value={form.width_cm}
+            onChange={(e) =>
+              set("width_cm", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Высота, см</label>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            value={form.height_cm}
+            onChange={(e) =>
+              set("height_cm", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Вес, кг</label>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            step="0.001"
+            value={form.weight_kg}
+            onChange={(e) =>
+              set("weight_kg", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field full">
+          <label className="form-label">Заметки</label>
+          <textarea
+            className="textarea"
+            value={form.notes}
+            onChange={(e) => set("notes", e.target.value)}
+          />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* =========================================================
+   Tariff Modal
+   ========================================================= */
+
+function TariffModal({
+  clients,
+  products,
+  defaultClientId = "",
+  onClose,
+  onSave,
+}) {
+  const [form, setForm] = useState({
+    client_id: defaultClientId,
+    product_id: "",
+    service_type: "shipment",
+    price_rub: "",
+    included_weight_kg: "1",
+    extra_kg_price_rub: "8",
+    effective_from: today(),
+    notes: "",
+    enabled: true,
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const clientProducts = products.filter(
+    (p) => p.client_id === form.client_id
+  );
+
+  const set = (key, value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  const save = async () => {
+    if (!form.client_id || !form.price_rub) return;
+
+    setSaving(true);
+
+    await onSave({
+      client_id: form.client_id,
+      product_id: form.product_id || null,
+      service_type: form.service_type,
+      price_rub: Number(form.price_rub),
+      enabled: true,
+      effective_from: form.effective_from || today(),
+      effective_to: null,
+      notes: form.notes || null,
+      included_weight_kg: Number(
+        form.included_weight_kg || 1
+      ),
+      extra_kg_price_rub: Number(
+        form.extra_kg_price_rub || 8
+      ),
+    });
+
+    setSaving(false);
+  };
+
+  return (
+    <Modal
+      title="Новый тариф"
+      subtitle="Тариф клиента в рублях"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? "Сохранение…" : "Создать тариф"}
+          </Button>
+        </>
+      }
+    >
+      <div className="form-grid">
+        <div className="form-field full">
+          <label className="form-label">Клиент *</label>
+          <select
+            className="select"
+            value={form.client_id}
+            onChange={(e) => {
+              set("client_id", e.target.value);
+              set("product_id", "");
+            }}
+          >
+            <option value="">Выберите клиента</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Услуга *</label>
+          <select
+            className="select"
+            value={form.service_type}
+            onChange={(e) =>
+              set("service_type", e.target.value)
+            }
+          >
+            {SERVICE_TYPES.map((x) => (
+              <option key={x.value} value={x.value}>
+                {x.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Товар</label>
+          <select
+            className="select"
+            value={form.product_id}
+            onChange={(e) =>
+              set("product_id", e.target.value)
+            }
+            disabled={!form.client_id}
+          >
+            <option value="">Для всего клиента</option>
+            {clientProducts.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.sku} — {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Цена, ₽ *</label>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.price_rub}
+            onChange={(e) =>
+              set("price_rub", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">
+            Включённый вес, кг
+          </label>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            step="0.001"
+            value={form.included_weight_kg}
+            onChange={(e) =>
+              set("included_weight_kg", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">
+            Дополнительный кг, ₽
+          </label>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.extra_kg_price_rub}
+            onChange={(e) =>
+              set("extra_kg_price_rub", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">
+            Действует с
+          </label>
+          <input
+            className="input"
+            type="date"
+            value={form.effective_from}
+            onChange={(e) =>
+              set("effective_from", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field full">
+          <label className="form-label">Заметки</label>
+          <textarea
+            className="textarea"
+            value={form.notes}
+            onChange={(e) => set("notes", e.target.value)}
+          />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* =========================================================
+   Shipment Modal
+   ========================================================= */
+
+function ShipmentModal({
+  clients,
+  products,
+  tariffs,
+  defaultClientId = "",
+  defaultProductId = "",
+  onClose,
+  onSave,
+}) {
+  const [form, setForm] = useState({
+    client_id: defaultClientId,
+    product_id: defaultProductId,
+    shipment_date: today(),
+    quantity: "1",
+    tariff_type: "shipment",
+    tariff_id: "",
+    weight_kg: "",
+    receiving_enabled: false,
+    receiving_unit_price_rub: "5",
+    note: "",
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const clientProducts = products.filter(
+    (p) => p.client_id === form.client_id
+  );
+
+  const clientTariffs = tariffs.filter(
+    (t) =>
+      t.client_id === form.client_id &&
+      t.service_type === "shipment" &&
+      t.enabled !== false &&
+      (!t.product_id || t.product_id === form.product_id)
+  );
+
+  const selectedTariff = tariffs.find(
+    (t) => t.id === form.tariff_id
+  );
+
+  const quantity = Math.max(0, Number(form.quantity || 0));
+
+  const baseUnitPrice = Number(
+    selectedTariff?.price_rub || 0
+  );
+
+  const includedWeight = Number(
+    selectedTariff?.included_weight_kg ?? 1
+  );
+
+  const extraKgPrice = Number(
+    selectedTariff?.extra_kg_price_rub ?? 8
+  );
+
+  const weight = Number(form.weight_kg || 0);
+
+  const includedTotal = includedWeight * quantity;
+
+  const extraWeight = Math.max(
+    0,
+    weight - includedTotal
+  );
+
+  const extraKgTotal =
+    extraWeight * extraKgPrice;
+
+  const baseTotal =
+    quantity * baseUnitPrice;
+
+  const receivingUnitPrice = Number(
+    form.receiving_unit_price_rub || 5
+  );
+
+  const receivingTotal = form.receiving_enabled
+    ? quantity * receivingUnitPrice
+    : 0;
+
+  const total =
+    baseTotal + extraKgTotal + receivingTotal;
+
+  const set = (key, value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  useEffect(() => {
+    if (!form.tariff_id && clientTariffs[0]) {
+      set("tariff_id", clientTariffs[0].id);
+    }
+  }, [form.client_id, form.product_id, clientTariffs.length]);
+
+  const save = async () => {
+    if (
+      !form.client_id ||
+      !form.product_id ||
+      quantity <= 0
+    ) {
+      return;
+    }
+
+    setSaving(true);
+
+    await onSave({
+      client_id: form.client_id,
+      product_id: form.product_id,
+      shipment_date: form.shipment_date,
+      quantity,
+      tariff_type: form.tariff_type,
+      unit_price_rub: baseUnitPrice,
+      total_rub: total,
+      weight_kg: weight,
+      base_unit_price_rub: baseUnitPrice,
+      included_weight_kg: includedWeight,
+      extra_kg_price_rub: extraKgPrice,
+      extra_kg_rub: extraKgTotal,
+      receiving_enabled: form.receiving_enabled,
+      receiving_unit_price_rub: receivingUnitPrice,
+      receiving_total_rub: receivingTotal,
+      note: form.note || null,
+    });
+
+    setSaving(false);
+  };
+
+  return (
+    <Modal
+      title="Новая отгрузка"
+      subtitle="Стоимость рассчитывается автоматически"
+      onClose={onClose}
+      large
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? "Сохранение…" : "Сохранить отгрузку"}
+          </Button>
+        </>
+      }
+    >
+      <div className="form-grid-3">
+        <div className="form-field">
+          <label className="form-label">Клиент *</label>
+          <select
+            className="select"
+            value={form.client_id}
+            onChange={(e) => {
+              set("client_id", e.target.value);
+              set("product_id", "");
+              set("tariff_id", "");
+            }}
+          >
+            <option value="">Выберите клиента</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Товар *</label>
+          <select
+            className="select"
+            value={form.product_id}
+            onChange={(e) => {
+              set("product_id", e.target.value);
+              set("tariff_id", "");
+            }}
+            disabled={!form.client_id}
+          >
+            <option value="">Выберите товар</option>
+            {clientProducts.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.sku} — {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Дата *</label>
+          <input
+            className="input"
+            type="date"
+            value={form.shipment_date}
+            onChange={(e) =>
+              set("shipment_date", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Количество *</label>
+          <input
+            className="input"
+            type="number"
+            min="1"
+            value={form.quantity}
+            onChange={(e) =>
+              set("quantity", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Тип тарифа</label>
+          <select
+            className="select"
+            value={form.tariff_type}
+            onChange={(e) =>
+              set("tariff_type", e.target.value)
+            }
+          >
+            {TARIFF_TYPES.map((x) => (
+              <option key={x.value} value={x.value}>
+                {x.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">
+            Тариф отгрузки
+          </label>
+          <select
+            className="select"
+            value={form.tariff_id}
+            onChange={(e) =>
+              set("tariff_id", e.target.value)
+            }
+            disabled={!form.client_id}
+          >
+            <option value="">
+              {clientTariffs.length
+                ? "Выберите тариф"
+                : "Тариф не задан"}
+            </option>
+
+            {clientTariffs.map((t) => (
+              <option key={t.id} value={t.id}>
+                {money(t.price_rub)}
+                {t.product_id ? " · товар" : " · клиент"}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">
+            Общий вес, кг
+          </label>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            step="0.001"
+            value={form.weight_kg}
+            onChange={(e) =>
+              set("weight_kg", e.target.value)
+            }
+            placeholder="0"
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">
+            Приёмка
+          </label>
+          <select
+            className="select"
+            value={form.receiving_enabled ? "yes" : "no"}
+            onChange={(e) =>
+              set(
+                "receiving_enabled",
+                e.target.value === "yes"
+              )
+            }
+          >
+            <option value="no">Нет</option>
+            <option value="yes">Да</option>
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">
+            Приёмка за единицу, ₽
+          </label>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.receiving_unit_price_rub}
+            onChange={(e) =>
+              set(
+                "receiving_unit_price_rub",
+                e.target.value
+              )
+            }
+            disabled={!form.receiving_enabled}
+          />
+        </div>
+
+        <div className="form-field full">
+          <label className="form-label">Комментарий</label>
+          <textarea
+            className="textarea"
+            value={form.note}
+            onChange={(e) =>
+              set("note", e.target.value)
+            }
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-2" style={{ marginTop: 16 }}>
+        <div className="card" style={{ padding: 15 }}>
+          <div className="stat-line">
+            <span>Базовая стоимость</span>
+            <span>{money(baseTotal)}</span>
+          </div>
+
+          <div className="stat-line">
+            <span>Включённый вес</span>
+            <span>{number(includedTotal)} кг</span>
+          </div>
+
+          <div className="stat-line">
+            <span>Дополнительный вес</span>
+            <span>
+              {number(extraWeight)} кг ·{" "}
+              {money(extraKgTotal)}
+            </span>
+          </div>
+
+          <div className="stat-line">
+            <span>Приёмка</span>
+            <span>{money(receivingTotal)}</span>
+          </div>
+        </div>
+
+        <div className="total-preview">
+          <div className="total-preview-label">
+            Итого к оплате
+          </div>
+          <div className="total-preview-value">
+            {money(total)}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* =========================================================
+   Storage Modal
+   ========================================================= */
+
+function StorageModal({
+  clients,
+  defaultClientId = "",
+  onClose,
+  onSave,
+}) {
+  const [form, setForm] = useState({
+    client_id: defaultClientId,
+    mode: "m3",
+    volume_m3: "",
+    unit_count: "",
+    start_date: today(),
+    end_date: today(),
+    price_per_m3_day_rub: "",
+    price_per_unit_day_rub: "0.20",
+    note: "",
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const set = (key, value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  const days = daysBetween(
+    form.start_date,
+    form.end_date
+  );
+
+  const volume = Number(form.volume_m3 || 0);
+  const units = Number(form.unit_count || 0);
+
+  const m3Price = Number(
+    form.price_per_m3_day_rub || 0
+  );
+
+  const unitPrice = Number(
+    form.price_per_unit_day_rub || 0
+  );
+
+  const total =
+    form.mode === "m3"
+      ? volume * m3Price * days
+      : units * unitPrice * days;
+
+  const save = async () => {
+    if (
+      !form.client_id ||
+      !form.start_date ||
+      !form.end_date
+    ) {
+      return;
+    }
+
+    if (form.mode === "m3" && volume <= 0) return;
+    if (form.mode === "unit" && units <= 0) return;
+
+    setSaving(true);
+
+    await onSave({
+      client_id: form.client_id,
+      volume_m3:
+        form.mode === "m3" ? volume : 0,
+      start_date: form.start_date,
+      end_date: form.end_date,
+      tariff_type: "storage",
+      price_per_m3_day_rub:
+        form.mode === "m3" ? m3Price : 0,
+      total_rub: total,
+      status: "planned",
+      note: form.note || null,
+      unit_count:
+        form.mode === "unit" ? Math.round(units) : 0,
+      price_per_unit_day_rub:
+        form.mode === "unit" ? unitPrice : 0,
+    });
+
+    setSaving(false);
+  };
+
+  return (
+    <Modal
+      title="Новое хранение"
+      subtitle="Хранение по м³ или по единицам"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? "Сохранение…" : "Сохранить хранение"}
+          </Button>
+        </>
+      }
+    >
+      <div className="form-grid">
+        <div className="form-field full">
+          <label className="form-label">Клиент *</label>
+          <select
+            className="select"
+            value={form.client_id}
+            onChange={(e) =>
+              set("client_id", e.target.value)
+            }
+          >
+            <option value="">Выберите клиента</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">
+            Способ расчёта
+          </label>
+          <select
+            className="select"
+            value={form.mode}
+            onChange={(e) =>
+              set("mode", e.target.value)
+            }
+          >
+            <option value="m3">По м³</option>
+            <option value="unit">По единицам</option>
+          </select>
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">
+            {form.mode === "m3"
+              ? "Объём, м³"
+              : "Количество единиц"}
+          </label>
+          {form.mode === "m3" ? (
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="0.001"
+              value={form.volume_m3}
+              onChange={(e) =>
+                set("volume_m3", e.target.value)
+              }
+            />
+          ) : (
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="1"
+              value={form.unit_count}
+              onChange={(e) =>
+                set("unit_count", e.target.value)
+              }
+            />
+          )}
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Дата начала *</label>
+          <input
+            className="input"
+            type="date"
+            value={form.start_date}
+            onChange={(e) =>
+              set("start_date", e.target.value)
+            }
+          />
+        </div>
+
+        <div className="form-field">
+          <label className="form-label">Дата окончания *</label>
+          <input
+            className="input"
+            type="date"
+            value={form.end_date}
+            min={form.start_date}
+            onChange={(e) =>
+              set("end_date", e.target.value)
+            }
+          />
+        </div>
+
+        {form.mode === "m3" ? (
+          <div className="form-field">
+            <label className="form-label">
+              ₽ / м³ / день
+            </label>
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.price_per_m3_day_rub}
+              onChange={(e) =>
+                set(
+                  "price_per_m3_day_rub",
+                  e.target.value
+                )
+              }
+            />
+          </div>
+        ) : (
+          <div className="form-field">
+            <label className="form-label">
+              ₽ / единицу / день
+            </label>
+            <input
+              className="input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.price_per_unit_day_rub}
+              onChange={(e) =>
+                set(
+                  "price_per_unit_day_rub",
+                  e.target.value
+                )
+              }
+            />
+          </div>
+        )}
+
+        <div className="form-field">
+          <label className="form-label">
+            Количество дней
+          </label>
+          <input
+            className="input"
+            value={days}
+            disabled
+          />
+        </div>
+
+        <div className="form-field full">
+          <label className="form-label">
+            Комментарий
+          </label>
+          <textarea
+            className="textarea"
+            value={form.note}
+            onChange={(e) =>
+              set("note", e.target.value)
+            }
+          />
+        </div>
+      </div>
+
+      <div className="total-preview" style={{ marginTop: 16 }}>
+        <div className="total-preview-label">
+          Стоимость хранения
+        </div>
+        <div className="total-preview-value">
+          {money(total)}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* =========================================================
+   Main App
    ========================================================= */
 
 function App() {
-  const [session, setSession] =
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const [page, setPage] = useState("dashboard");
+
+  const [clients, setClients] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [tariffs, setTariffs] = useState([]);
+  const [shipments, setShipments] = useState([]);
+  const [storage, setStorage] = useState([]);
+  const [requests, setRequests] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+
+  const [selectedClientId, setSelectedClientId] =
     useState(null);
 
-  const [authLoading, setAuthLoading] =
-    useState(true);
+  const [modal, setModal] = useState(null);
 
-  const [page, setPage] =
-    useState("dashboard");
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
 
-  const [mobileOpen, setMobileOpen] =
-    useState(false);
+    window.setTimeout(() => {
+      setToast(null);
+    }, 4500);
+  };
 
-  const [clients, setClients] =
-    useState([]);
+  const showError = (error) => {
+    console.error(error);
 
-  const [products, setProducts] =
-    useState([]);
+    const message =
+      error?.message ||
+      error?.details ||
+      error?.hint ||
+      "Произошла ошибка при сохранении данных.";
 
-  const [tariffs, setTariffs] =
-    useState([]);
+    showToast(message, "error");
+  };
 
-  const [shipments, setShipments] =
-    useState([]);
-
-  const [storage, setStorage] =
-    useState([]);
-
-  const [requests, setRequests] =
-    useState([]);
-
-  const [enums, setEnums] =
-    useState({});
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [toasts, setToasts] =
-    useState([]);
+  /* ---------------- Authentication ---------------- */
 
   useEffect(() => {
-    injectStyles();
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
 
     let mounted = true;
 
-    async function init() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (mounted) {
-        setSession(session);
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (mounted) {
+          setSession(data.session);
+          setAuthLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error(error);
         setAuthLoading(false);
-      }
-    }
-
-    init();
+      });
 
     const {
       data: { subscription },
-    } =
-      supabase.auth.onAuthStateChange(
-        (_event, session) => {
-          setSession(session);
-          setAuthLoading(false);
-        }
-      );
+    } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
+        setSession(newSession);
+      }
+    );
 
     return () => {
       mounted = false;
@@ -4676,407 +3822,692 @@ function App() {
     };
   }, []);
 
-  function notify(
-    message,
-    type = "success"
-  ) {
-    const id =
-      Date.now() +
-      Math.random();
+  /* ---------------- Data loading ---------------- */
 
-    setToasts((items) => [
-      ...items,
-      {
-        id,
-        message,
-        type,
-      },
-    ]);
-
-    setTimeout(() => {
-      setToasts((items) =>
-        items.filter(
-          (item) => item.id !== id
-        )
-      );
-    }, 3500);
-  }
-
-  async function loadData() {
-    if (!session) return;
+  const loadAll = async () => {
+    if (!supabase || !session) return;
 
     setLoading(true);
 
-    const [
-      clientsRes,
-      productsRes,
-      tariffsRes,
-      shipmentsRes,
-      storageRes,
-      requestsRes,
-      enumsRes,
-    ] = await Promise.all([
-      supabase
-        .from("clients")
-        .select("*")
-        .order("name"),
+    try {
+      const [
+        clientsResult,
+        productsResult,
+        tariffsResult,
+        shipmentsResult,
+        storageResult,
+        requestsResult,
+      ] = await Promise.all([
+        supabase
+          .from("clients")
+          .select("*")
+          .order("name"),
 
-      supabase
-        .from("products")
-        .select("*")
-        .order("name"),
+        supabase
+          .from("products")
+          .select("*")
+          .order("name"),
 
-      supabase
-        .from("service_tariffs")
-        .select("*")
-        .order("created_at", {
-          ascending: false,
-        }),
+        supabase
+          .from("service_tariffs")
+          .select("*")
+          .order("created_at", {
+            ascending: false,
+          }),
 
-      supabase
-        .from("shipments")
-        .select("*")
-        .order("shipment_date", {
-          ascending: false,
-        }),
+        supabase
+          .from("shipments")
+          .select("*")
+          .order("shipment_date", {
+            ascending: false,
+          }),
 
-      supabase
-        .from("storage_records")
-        .select("*")
-        .order("start_date", {
-          ascending: false,
-        }),
+        supabase
+          .from("storage_records")
+          .select("*")
+          .order("start_date", {
+            ascending: false,
+          }),
 
-      supabase
-        .from("cooperation_requests")
-        .select("*")
-        .order("created_at", {
-          ascending: false,
-        }),
+        supabase
+          .from("cooperation_requests")
+          .select("*")
+          .order("created_at", {
+            ascending: false,
+          }),
+      ]);
 
-      supabase.rpc(
-        "get_sortex_enums"
-      ),
-    ]);
+      const results = [
+        clientsResult,
+        productsResult,
+        tariffsResult,
+        shipmentsResult,
+        storageResult,
+        requestsResult,
+      ];
 
-    if (clientsRes.error)
-      notify(
-        clientsRes.error.message,
-        "error"
-      );
+      const failed = results.find((x) => x.error);
 
-    if (productsRes.error)
-      notify(
-        productsRes.error.message,
-        "error"
-      );
+      if (failed?.error) {
+        throw failed.error;
+      }
 
-    if (tariffsRes.error)
-      notify(
-        tariffsRes.error.message,
-        "error"
-      );
+      setClients(clientsResult.data || []);
+      setProducts(productsResult.data || []);
+      setTariffs(tariffsResult.data || []);
+      setShipments(shipmentsResult.data || []);
+      setStorage(storageResult.data || []);
+      setRequests(requestsResult.data || []);
 
-    if (shipmentsRes.error)
-      notify(
-        shipmentsRes.error.message,
-        "error"
-      );
-
-    if (storageRes.error)
-      notify(
-        storageRes.error.message,
-        "error"
-      );
-
-    if (requestsRes.error)
-      notify(
-        requestsRes.error.message,
-        "error"
-      );
-
-    setClients(
-      clientsRes.data || []
-    );
-
-    setProducts(
-      productsRes.data || []
-    );
-
-    setTariffs(
-      tariffsRes.data || []
-    );
-
-    setShipments(
-      shipmentsRes.data || []
-    );
-
-    setStorage(
-      storageRes.data || []
-    );
-
-    setRequests(
-      requestsRes.data || []
-    );
-
-    if (!enumsRes.error) {
-      setEnums(
-        enumsRes.data || {}
-      );
+      if (!selectedClientId && clientsResult.data?.[0]) {
+        setSelectedClientId(clientsResult.data[0].id);
+      }
+    } catch (error) {
+      showError(error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-  }
+  };
 
   useEffect(() => {
     if (!session) return;
-
-    loadData();
+    loadAll();
   }, [session]);
 
-  useEffect(() => {
-    if (!session) return;
+  /* ---------------- Realtime requests ---------------- */
 
-    const channel =
-      supabase
-        .channel(
-          "sortex-cooperation-requests"
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "cooperation_requests",
-          },
-          () => {
-            loadData();
-          }
-        )
-        .subscribe();
+  useEffect(() => {
+    if (!supabase || !session) return;
+
+    const channel = supabase
+      .channel("sortex-cooperation-requests")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "cooperation_requests",
+        },
+        () => {
+          loadRequestsOnly();
+        }
+      )
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(
-        channel
-      );
+      supabase.removeChannel(channel);
     };
   }, [session]);
 
-  async function logout() {
+  const loadRequestsOnly = async () => {
+    if (!supabase || !session) return;
+
+    const { data, error } = await supabase
+      .from("cooperation_requests")
+      .select("*")
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (!error) {
+      setRequests(data || []);
+    }
+  };
+
+  /* ---------------- CRUD ---------------- */
+
+  const addClient = async (payload) => {
+    try {
+      const { data, error } = await supabase
+        .from("clients")
+        .insert({
+          ...payload,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setClients((prev) =>
+        [...prev, data].sort((a, b) =>
+          String(a.name).localeCompare(String(b.name))
+        )
+      );
+
+      setSelectedClientId(data.id);
+      setModal(null);
+      showToast("Клиент создан.");
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const addProduct = async (payload) => {
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setProducts((prev) => [...prev, data]);
+      setModal(null);
+      showToast("Товар создан.");
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const addTariff = async (payload) => {
+    try {
+      const { data, error } = await supabase
+        .from("service_tariffs")
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTariffs((prev) => [data, ...prev]);
+      setModal(null);
+      showToast("Тариф создан.");
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const addShipment = async (payload) => {
+    try {
+      /*
+       * IMPORTANT:
+       * We intentionally do not send "status".
+       * PostgreSQL will use:
+       * default 'active'::operation_status
+       *
+       * tariff_type is one of:
+       * small / medium / large / shipment
+       */
+
+      const insertPayload = {
+        client_id: payload.client_id,
+        product_id: payload.product_id,
+        shipment_date: payload.shipment_date,
+        quantity: payload.quantity,
+        tariff_type: payload.tariff_type,
+        unit_price_rub: payload.unit_price_rub,
+        total_rub: payload.total_rub,
+        weight_kg: payload.weight_kg,
+        base_unit_price_rub:
+          payload.base_unit_price_rub,
+        included_weight_kg:
+          payload.included_weight_kg,
+        extra_kg_price_rub:
+          payload.extra_kg_price_rub,
+        extra_kg_rub: payload.extra_kg_rub,
+        receiving_enabled:
+          payload.receiving_enabled,
+        receiving_unit_price_rub:
+          payload.receiving_unit_price_rub,
+        receiving_total_rub:
+          payload.receiving_total_rub,
+        note: payload.note,
+        created_by: session?.user?.id || null,
+      };
+
+      const { data, error } = await supabase
+        .from("shipments")
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setShipments((prev) => [data, ...prev]);
+      setModal(null);
+      showToast("Отгрузка сохранена.");
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const addStorage = async (payload) => {
+    try {
+      /*
+       * tariff_type = storage
+       * status = planned
+       *
+       * All NOT NULL fields from storage_records
+       * are explicitly supplied.
+       */
+
+      const insertPayload = {
+        client_id: payload.client_id,
+        volume_m3: payload.volume_m3,
+        start_date: payload.start_date,
+        end_date: payload.end_date,
+        tariff_type: "storage",
+        price_per_m3_day_rub:
+          payload.price_per_m3_day_rub,
+        total_rub: payload.total_rub,
+        status: "planned",
+        note: payload.note,
+        created_by: session?.user?.id || null,
+        unit_count: payload.unit_count,
+        price_per_unit_day_rub:
+          payload.price_per_unit_day_rub,
+      };
+
+      const { data, error } = await supabase
+        .from("storage_records")
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setStorage((prev) => [data, ...prev]);
+      setModal(null);
+      showToast("Хранение сохранено.");
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  const updateRequest = async (id, patch) => {
+    try {
+      const status = patch.status;
+
+      const updatePayload = {
+        status,
+        client_id: patch.client_id || null,
+        internal_note: patch.internal_note || null,
+      };
+
+      /*
+       * The existing table allows processed_at / processed_by.
+       * When request leaves "new", mark it processed.
+       */
+      if (status !== "new") {
+        updatePayload.processed_at =
+          new Date().toISOString();
+        updatePayload.processed_by =
+          session?.user?.id || null;
+      } else {
+        updatePayload.processed_at = null;
+        updatePayload.processed_by = null;
+      }
+
+      const { data, error } = await supabase
+        .from("cooperation_requests")
+        .update(updatePayload)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setRequests((prev) =>
+        prev.map((x) => (x.id === id ? data : x))
+      );
+
+      showToast("Заявка обновлена.");
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  /* ---------------- Modal helpers ---------------- */
+
+  const openClientModal = () =>
+    setModal({ type: "client" });
+
+  const openProductModal = (clientId = "") =>
+    setModal({
+      type: "product",
+      clientId,
+    });
+
+  const openTariffModal = (clientId = "") =>
+    setModal({
+      type: "tariff",
+      clientId,
+    });
+
+  const openShipmentModal = (
+    clientId = "",
+    productId = ""
+  ) =>
+    setModal({
+      type: "shipment",
+      clientId,
+      productId,
+    });
+
+  const openStorageModal = (clientId = "") =>
+    setModal({
+      type: "storage",
+      clientId,
+    });
+
+  /* ---------------- Navigation ---------------- */
+
+  const navItems = [
+    {
+      id: "dashboard",
+      label: "Главная",
+      icon: "home",
+    },
+    {
+      id: "clients",
+      label: "Клиенты",
+      icon: "clients",
+    },
+    {
+      id: "products",
+      label: "Товары",
+      icon: "products",
+    },
+    {
+      id: "shipments",
+      label: "Отгрузка",
+      icon: "shipment",
+    },
+    {
+      id: "requests",
+      label: "Заявки",
+      icon: "requests",
+    },
+    {
+      id: "reports",
+      label: "Отчет",
+      icon: "report",
+    },
+  ];
+
+  const logout = async () => {
     await supabase.auth.signOut();
     setSession(null);
+  };
+
+  if (!supabase) {
+    return (
+      <>
+        <style>{CSS}</style>
+        <div className="login">
+          <div className="login-card">
+            <div className="login-title">
+              SORTEX WMS
+            </div>
+
+            <div
+              className="error"
+              style={{ marginTop: 15 }}
+            >
+              Не найдены переменные окружения Supabase.
+              <br />
+              <br />
+              Проверь файл .env:
+              <br />
+              VITE_SUPABASE_URL
+              <br />
+              VITE_SUPABASE_ANON_KEY
+            </div>
+          </div>
+        </div>
+      </>
+    );
   }
 
   if (authLoading) {
     return (
-      <div
-        className="login-screen"
-        style={{
-          color: "var(--text-muted)",
-        }}
-      >
-        Загрузка SORTEX WMS...
-      </div>
+      <>
+        <style>{CSS}</style>
+        <div className="login">
+          <div className="login-card">
+            <div className="loading">
+              Проверка авторизации…
+            </div>
+          </div>
+        </div>
+      </>
     );
   }
 
   if (!session) {
     return (
       <>
+        <style>{CSS}</style>
         <Login
-          onLogin={() => {}}
+          onLogin={(newSession) =>
+            setSession(newSession)
+          }
         />
-
-        <div className="toast-container">
-          {toasts.map((toast) => (
-            <div
-              key={toast.id}
-              className={`toast ${toast.type}`}
-            >
-              {toast.message}
-            </div>
-          ))}
-        </div>
       </>
     );
   }
 
-  const titles = {
-    dashboard: [
-      "Главная",
-      "Обзор складской системы",
-    ],
-    clients: [
-      "Клиенты",
-      "Клиенты, тарифы и финансовые показатели",
-    ],
-    products: [
-      "Товары",
-      "Каталог товаров и параметры хранения",
-    ],
-    shipments: [
-      "Отгрузка",
-      "Операции и расчёт стоимости",
-    ],
-    requests: [
-      "Заявки",
-      "Обращения клиентов с сайта",
-    ],
-    reports: [
-      "Отчет",
-      "Финансовая статистика за период",
-    ],
-  };
-
-  const currentTitle =
-    titles[page] || titles.dashboard;
-
   return (
-    <div className="app">
-      <div className="shell">
-        <Sidebar
-          page={page}
-          setPage={setPage}
-          user={session.user}
-          onLogout={logout}
-          mobileOpen={mobileOpen}
-          setMobileOpen={setMobileOpen}
-        />
+    <>
+      <style>{CSS}</style>
+
+      <div className="app">
+        <aside className="sidebar">
+          <div className="brand">
+            <div className="brand-mark">
+              <span />
+            </div>
+
+            <div>
+              <div className="brand-title">
+                SORTEX WMS
+              </div>
+              <div className="brand-subtitle">
+                Warehouse management
+              </div>
+            </div>
+          </div>
+
+          <div className="nav-label">Рабочее пространство</div>
+
+          <nav className="nav">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                className={`nav-button ${
+                  page === item.id ? "active" : ""
+                }`}
+                onClick={() => setPage(item.id)}
+              >
+                <span className="nav-icon">
+                  <Icon type={item.icon} />
+                </span>
+
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="sidebar-bottom">
+            <div className="user-box">
+              <div className="user-email">
+                {session.user?.email}
+              </div>
+
+              <Button
+                small
+                variant="secondary"
+                onClick={logout}
+                style={{ width: "100%" }}
+              >
+                <Icon type="logout" /> Выйти
+              </Button>
+            </div>
+          </div>
+        </aside>
 
         <main className="main">
-          <header className="topbar">
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              <button
-                className="mobile-menu"
-                onClick={() =>
-                  setMobileOpen(
-                    !mobileOpen
-                  )
-                }
-              >
-                ☰
-              </button>
+          {page === "dashboard" && (
+            <Dashboard
+              clients={clients}
+              shipments={shipments}
+              storage={storage}
+              requests={requests}
+              loading={loading}
+              onAddShipment={() =>
+                openShipmentModal()
+              }
+              onAddStorage={() =>
+                openStorageModal()
+              }
+              onAddClient={openClientModal}
+              onNavigate={setPage}
+            />
+          )}
 
-              <div>
-                <div className="page-title">
-                  {currentTitle[0]}
-                </div>
+          {page === "clients" && (
+            <Clients
+              clients={clients}
+              products={products}
+              tariffs={tariffs}
+              shipments={shipments}
+              storage={storage}
+              loading={loading}
+              selectedClientId={selectedClientId}
+              setSelectedClientId={setSelectedClientId}
+              onAddClient={openClientModal}
+              onAddTariff={openTariffModal}
+              onAddShipment={(clientId) =>
+                openShipmentModal(clientId)
+              }
+              onAddStorage={(clientId) =>
+                openStorageModal(clientId)
+              }
+            />
+          )}
 
-                <div className="page-subtitle">
-                  {currentTitle[1]}
-                </div>
-              </div>
-            </div>
+          {page === "products" && (
+            <Products
+              products={products}
+              clients={clients}
+              loading={loading}
+              onAddProduct={() =>
+                openProductModal()
+              }
+            />
+          )}
 
-            <div className="topbar-right">
-              <div
-                className="badge success"
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background:
-                      "var(--green)",
-                  }}
-                />
-                Система активна
-              </div>
-            </div>
-          </header>
+          {page === "shipments" && (
+            <Shipments
+              shipments={shipments}
+              clients={clients}
+              products={products}
+              loading={loading}
+              onAddShipment={() =>
+                openShipmentModal()
+              }
+            />
+          )}
 
-          <div className="content">
-            {page === "dashboard" && (
-              <Dashboard
-                clients={clients}
-                products={products}
-                shipments={shipments}
-                storage={storage}
-                requests={requests}
-                loading={loading}
-              />
-            )}
+          {page === "requests" && (
+            <Requests
+              requests={requests}
+              clients={clients}
+              loading={loading}
+              onUpdateRequest={updateRequest}
+            />
+          )}
 
-            {page === "clients" && (
-              <Clients
-                clients={clients}
-                products={products}
-                tariffs={tariffs}
-                shipments={shipments}
-                storage={storage}
-                refresh={loadData}
-                notify={notify}
-              />
-            )}
-
-            {page === "products" && (
-              <Products
-                products={products}
-                clients={clients}
-                refresh={loadData}
-                notify={notify}
-              />
-            )}
-
-            {page === "shipments" && (
-              <Shipments
-                shipments={shipments}
-                clients={clients}
-                products={products}
-                tariffs={tariffs}
-                enums={enums}
-                refresh={loadData}
-                notify={notify}
-              />
-            )}
-
-            {page === "requests" && (
-              <Requests
-                requests={requests}
-                clients={clients}
-                refresh={loadData}
-                notify={notify}
-              />
-            )}
-
-            {page === "reports" && (
-              <Reports
-                clients={clients}
-                shipments={shipments}
-                storage={storage}
-              />
-            )}
-          </div>
+          {page === "reports" && (
+            <Reports
+              clients={clients}
+              shipments={shipments}
+              storage={storage}
+              loading={loading}
+            />
+          )}
         </main>
       </div>
 
-      <div className="toast-container">
-        {toasts.map((toast) => (
+      {modal?.type === "client" && (
+        <ClientModal
+          onClose={() => setModal(null)}
+          onSave={addClient}
+        />
+      )}
+
+      {modal?.type === "product" && (
+        <ProductModal
+          clients={clients}
+          defaultClientId={modal.clientId}
+          onClose={() => setModal(null)}
+          onSave={addProduct}
+        />
+      )}
+
+      {modal?.type === "tariff" && (
+        <TariffModal
+          clients={clients}
+          products={products}
+          defaultClientId={modal.clientId}
+          onClose={() => setModal(null)}
+          onSave={addTariff}
+        />
+      )}
+
+      {modal?.type === "shipment" && (
+        <ShipmentModal
+          clients={clients}
+          products={products}
+          tariffs={tariffs}
+          defaultClientId={modal.clientId}
+          defaultProductId={modal.productId}
+          onClose={() => setModal(null)}
+          onSave={addShipment}
+        />
+      )}
+
+      {modal?.type === "storage" && (
+        <StorageModal
+          clients={clients}
+          defaultClientId={modal.clientId}
+          onClose={() => setModal(null)}
+          onSave={addStorage}
+        />
+      )}
+
+      {toast && (
+        <div className="toast-container">
           <div
-            key={toast.id}
-            className={`toast ${toast.type}`}
+            className={`toast ${
+              toast.type === "error"
+                ? "error-toast"
+                : ""
+            }`}
           >
             {toast.message}
           </div>
-        ))}
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 }
 
 /* =========================================================
-   START
+   Start application
    ========================================================= */
 
-createRoot(
-  document.getElementById("root")
-).render(
+const rootElement = document.getElementById("root");
+
+if (!rootElement) {
+  throw new Error(
+    'Не найден элемент <div id="root"></div> в index.html'
+  );
+}
+
+createRoot(rootElement).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
