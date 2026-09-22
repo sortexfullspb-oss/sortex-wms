@@ -1309,6 +1309,9 @@ const Button = ({
   type = "button",
   disabled = false,
   style,
+  form,
+  name,
+  value,
 }) => (
   <button
     type={type}
@@ -1322,6 +1325,9 @@ const Button = ({
     onClick={onClick}
     disabled={disabled}
     style={style}
+    form={form}
+    name={name}
+    value={value}
   >
     {children}
   </button>
@@ -1945,6 +1951,8 @@ function Clients({
   onAddTariff,
   onAddShipment,
   onAddStorage,
+  onDeleteClient,
+  onDeleteStorage,
 }) {
   const [search, setSearch] = useState("");
 
@@ -2111,6 +2119,9 @@ function Clients({
                 </div>
 
                 <div className="toolbar">
+                  <Button small variant="danger" onClick={() => onDeleteClient(selectedClient)}>
+                    Удалить клиента
+                  </Button>
                   <Button
                     small
                     onClick={() =>
@@ -2246,6 +2257,13 @@ function Clients({
 
                 <div className="section">
                   <div className="section-header">
+                    <div><div className="section-title">Хранение клиента</div><div className="section-subtitle">Все записи хранения</div></div>
+                  </div>
+                  {clientStorage.length === 0 ? <Empty>Записей хранения ещё нет.</Empty> : <div className="table-wrap"><table><thead><tr><th>Период</th><th>Расчёт</th><th>Количество</th><th>Ставка</th><th>Сумма</th><th></th></tr></thead><tbody>{clientStorage.map((record)=><tr key={record.id}><td>{formatDate(record.start_date)} — {formatDate(record.end_date)}</td><td>{Number(record.unit_count||0)>0?"За единицу":"М³"}</td><td>{Number(record.unit_count||0)>0?number(record.unit_count):number(record.volume_m3)}</td><td>{money(Number(record.unit_count||0)>0?record.price_per_unit_day_rub:record.price_per_m3_day_rub)}</td><td className="gold">{money(record.total_rub)}</td><td><Button small variant="danger" onClick={()=>onDeleteStorage(record.id)}>Удалить</Button></td></tr>)}</tbody></table></div>}
+                </div>
+
+                <div className="section">
+                  <div className="section-header">
                     <div>
                       <div className="section-title">
                         Товары клиента
@@ -2271,8 +2289,8 @@ function Clients({
                           <tr>
                             <th>Название</th>
                             <th>Артикул</th>
-                            <th>Ед.</th>
-                            <th>Цена</th>
+                            <th>Размер</th>
+                            <th>Вес, кг</th>
                           </tr>
                         </thead>
 
@@ -2289,12 +2307,12 @@ function Clients({
                                 </td>
 
                                 <td>
-                                  {product.unit || "шт"}
+                                  {product.size_type || "—"}
                                 </td>
 
                                 <td className="gold">
-                                  {money(
-                                    product.price_rub
+                                  {number(
+                                    product.weight_kg
                                   )}
                                 </td>
                               </tr>
@@ -2356,7 +2374,7 @@ function Clients({
 
                                 <td className="gold">
                                   {money(
-                                    tariff.base_unit_price_rub
+                                    tariff.price_rub
                                   )}
                                 </td>
 
@@ -2409,7 +2427,7 @@ function Products({
       [
         product.name,
         product.sku,
-        product.unit,
+        product.size_type,
         getClientName(clients, product.client_id),
       ]
         .filter(Boolean)
@@ -2477,9 +2495,10 @@ function Products({
                   <th>Название</th>
                   <th>Артикул</th>
                   <th>Клиент</th>
-                  <th>Единица</th>
-                  <th>Цена</th>
+                  <th>Размер</th>
+                  <th>Вес, кг</th>
                   <th>Статус</th>
+                  <th></th>
                 </tr>
               </thead>
 
@@ -2502,11 +2521,11 @@ function Products({
                     </td>
 
                     <td>
-                      {product.unit || "шт"}
+                      {product.size_type || "—"}
                     </td>
 
                     <td className="gold">
-                      {money(product.price_rub)}
+                      {number(product.weight_kg)}
                     </td>
 
                     <td>
@@ -2543,6 +2562,7 @@ function Shipments({
   products,
   loading,
   onAddShipment,
+  onDeleteShipment,
 }) {
   const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -2796,6 +2816,7 @@ function Shipments({
                         )}
                       </Badge>
                     </td>
+                    <td><Button small variant="danger" onClick={()=>onDeleteShipment(shipment.id)}>Удалить</Button></td>
                   </tr>
                 ))}
               </tbody>
@@ -5265,7 +5286,11 @@ function App() {
       );
 
       setTariffs(
-        tariffsResult.data || []
+        (tariffsResult.data || []).map((t) => ({
+          ...t,
+          tariff_type: t.tariff_type || t.service_type || "shipment",
+          base_unit_price_rub: t.base_unit_price_rub ?? t.price_rub ?? 0,
+        }))
       );
 
       setShipments(
@@ -5273,7 +5298,10 @@ function App() {
       );
 
       setStorage(
-        storageResult.data || []
+        (storageResult.data || []).map((r) => ({
+          ...r,
+          billing_mode: Number(r.unit_count || 0) > 0 ? "unit" : "m3",
+        }))
       );
 
       setRequests(
@@ -5298,6 +5326,13 @@ function App() {
 
   const addClient = async (payload) => {
     try {
+      if (!supabase) throw new Error("Supabase не настроен.");
+
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData?.user) {
+        throw new Error("Сессия авторизации Supabase отсутствует или истекла. Выйдите и войдите снова.");
+      }
+
       const clientPayload = {
         name: String(
           payload.name || ""
@@ -5386,64 +5421,37 @@ function App() {
 
   const addProduct = async (payload) => {
     try {
+      if (!supabase) throw new Error("Supabase не настроен.");
       if (!payload.client_id) {
-        throw new Error(
-          "Выберите клиента."
-        );
+        throw new Error("Выберите клиента.");
       }
 
-      if (
-        !String(payload.name || "").trim()
-      ) {
-        throw new Error(
-          "Укажите название товара."
-        );
-      }
+      const name = String(payload.name || "").trim();
+      if (!name) throw new Error("Укажите название товара.");
 
       const insertPayload = {
-        client_id:
-          payload.client_id,
-
-        name: String(
-          payload.name || ""
-        ).trim(),
-
-        sku:
-          payload.sku || null,
-
-        unit:
-          payload.unit || "шт",
-
-        price_rub:
-          Number(
-            payload.price_rub || 0
-          ),
-
-        is_active:
-          payload.is_active !== false,
+        client_id: payload.client_id,
+        name,
+        sku: String(payload.sku || "").trim() || null,
+        size_type: payload.size_type || null,
+        length_cm: payload.length_cm === "" ? null : Number(payload.length_cm),
+        width_cm: payload.width_cm === "" ? null : Number(payload.width_cm),
+        height_cm: payload.height_cm === "" ? null : Number(payload.height_cm),
+        weight_kg: payload.weight_kg === "" ? null : Number(payload.weight_kg),
+        notes: payload.notes || null,
+        is_active: payload.is_active !== false,
       };
 
-      const {
-        data,
-        error,
-      } = await supabase
+      const { data, error } = await supabase
         .from("products")
         .insert(insertPayload)
         .select()
         .single();
 
       if (error) throw error;
-
-      setProducts((prev) => [
-        data,
-        ...prev,
-      ]);
-
+      setProducts((prev) => [data, ...prev]);
       setModal(null);
-
-      showToast(
-        "Товар успешно добавлен."
-      );
+      showToast("Товар успешно добавлен.");
     } catch (error) {
       showError(error);
     }
@@ -5451,63 +5459,30 @@ function App() {
 
   const addTariff = async (payload) => {
     try {
-      if (!payload.client_id) {
-        throw new Error(
-          "Выберите клиента."
-        );
-      }
+      if (!supabase) throw new Error("Supabase не настроен.");
+      if (!payload.client_id) throw new Error("Выберите клиента.");
 
       const insertPayload = {
-        client_id:
-          payload.client_id,
-
-        product_id:
-          payload.product_id || null,
-
-        tariff_type:
-          payload.tariff_type ||
-          "shipment",
-
-        base_unit_price_rub:
-          Number(
-            payload.base_unit_price_rub ||
-              0
-          ),
-
-        included_weight_kg:
-          Number(
-            payload.included_weight_kg ||
-              0
-          ),
-
-        extra_kg_price_rub:
-          Number(
-            payload.extra_kg_price_rub ||
-              0
-          ),
+        client_id: payload.client_id,
+        product_id: payload.product_id || null,
+        service_type: payload.tariff_type === "receiving" ? "receiving" : "shipment",
+        price_rub: Number(payload.base_unit_price_rub || 0),
+        enabled: true,
+        effective_from: payload.effective_from || today(),
+        included_weight_kg: Number(payload.included_weight_kg || 0),
+        extra_kg_price_rub: Number(payload.extra_kg_price_rub || 0),
       };
 
-      const {
-        data,
-        error,
-      } = await supabase
+      const { data, error } = await supabase
         .from("service_tariffs")
         .insert(insertPayload)
         .select()
         .single();
 
       if (error) throw error;
-
-      setTariffs((prev) => [
-        data,
-        ...prev,
-      ]);
-
+      setTariffs((prev) => [{ ...data, tariff_type: data.service_type, base_unit_price_rub: data.price_rub }, ...prev]);
       setModal(null);
-
-      showToast(
-        "Тариф успешно добавлен."
-      );
+      showToast("Тариф успешно добавлен.");
     } catch (error) {
       showError(error);
     }
@@ -5515,6 +5490,7 @@ function App() {
 
   const addShipment = async (payload) => {
     try {
+      if (!supabase) throw new Error("Supabase не настроен.");
       const quantity =
         Number(payload.quantity);
 
@@ -5560,6 +5536,17 @@ function App() {
         );
       }
 
+      // В БД total_rub проверяется отдельным CHECK-ограничением.
+      // Поэтому считаем сумму строго по той же формуле, что и Supabase.
+      const baseUnitPrice = Number(payload.base_unit_price_rub || 0);
+      const includedWeight = Number(payload.included_weight_kg || 0);
+      const extraKgPrice = Number(payload.extra_kg_price_rub || 0);
+      const extraKg = Math.max(weight - includedWeight, 0);
+      const extraRub = extraKg * extraKgPrice;
+      const receivingUnitPrice = Number(payload.receiving_unit_price_rub || 0);
+      const receivingTotal = payload.receiving_enabled ? quantity * receivingUnitPrice : 0;
+      const dbTotal = Number((quantity * (baseUnitPrice + extraRub) + receivingTotal).toFixed(2));
+
       const extendedPayload = {
         client_id:
           payload.client_id,
@@ -5577,10 +5564,10 @@ function App() {
           "shipment",
 
         unit_price_rub:
-          unitPrice,
+          unitPrice || baseUnitPrice,
 
         total_rub:
-          total,
+          dbTotal,
 
         weight_kg:
           weight,
@@ -5604,9 +5591,7 @@ function App() {
           ),
 
         extra_kg_rub:
-          Number(
-            payload.extra_kg_rub || 0
-          ),
+          Number(extraRub.toFixed(2)),
 
         receiving_enabled:
           Boolean(
@@ -5620,10 +5605,7 @@ function App() {
           ),
 
         receiving_total_rub:
-          Number(
-            payload.receiving_total_rub ||
-              0
-          ),
+          Number(receivingTotal.toFixed(2)),
 
         note:
           payload.note || null,
@@ -5706,85 +5688,99 @@ function App() {
 
   const addStorage = async (payload) => {
     try {
-      if (!payload.client_id) {
-        throw new Error(
-          "Выберите клиента."
-        );
-      }
+      if (!supabase) throw new Error("Supabase не настроен.");
+      if (!payload.client_id) throw new Error("Выберите клиента.");
+      if (!payload.start_date || !payload.end_date) throw new Error("Укажите период хранения.");
+      if (payload.end_date < payload.start_date) throw new Error("Дата окончания не может быть раньше даты начала.");
 
-      if (!payload.start_date) {
-        throw new Error(
-          "Укажите дату начала."
-        );
-      }
+      const mode = payload.billing_mode === "unit" ? "unit" : "m3";
+      const volume = mode === "m3" ? Number(payload.volume_m3 || 0) : 0;
+      const units = mode === "unit" ? Math.max(1, Number(payload.unit_count || 0)) : 0;
+      const days = daysBetween(payload.start_date, payload.end_date);
+      const priceM3 = mode === "m3" ? Number(payload.price_per_m3_day_rub || 0) : 0;
+      const priceUnit = mode === "unit" ? Number(payload.price_per_unit_day_rub || 0) : 0;
+      const total = mode === "m3" ? volume * days * priceM3 : units * days * priceUnit;
+      const roundedTotal = Number(total.toFixed(2));
 
-      if (!payload.end_date) {
-        throw new Error(
-          "Укажите дату окончания."
-        );
-      }
+      if (mode === "m3" && volume <= 0) throw new Error("Укажите объём в м³.");
+      if (mode === "unit" && units <= 0) throw new Error("Укажите количество единиц.");
 
       const insertPayload = {
-        client_id:
-          payload.client_id,
-
-        start_date:
-          payload.start_date,
-
-        end_date:
-          payload.end_date,
-
-        places:
-          Number(
-            payload.places || 0
-          ),
-
-        rate_rub_per_day:
-          Number(
-            payload.rate_rub_per_day ||
-              0
-          ),
-
-        total_rub:
-          Number(
-            payload.total_rub || 0
-          ),
-
-        status:
-          payload.status ||
-          "planned",
-
-        note:
-          payload.note || null,
-
-        created_by:
-          session?.user?.id || null,
+        client_id: payload.client_id,
+        volume_m3: volume,
+        start_date: payload.start_date,
+        end_date: payload.end_date,
+        tariff_type: "storage",
+        price_per_m3_day_rub: priceM3,
+        total_rub: roundedTotal,
+        status: payload.status || "planned",
+        note: payload.note || null,
+        created_by: session?.user?.id || null,
+        unit_count: units,
+        price_per_unit_day_rub: priceUnit,
       };
 
-      const {
-        data,
-        error,
-      } = await supabase
+      const { data, error } = await supabase
         .from("storage_records")
         .insert(insertPayload)
         .select()
         .single();
 
       if (error) throw error;
-
-      setStorage((prev) => [
-        data,
-        ...prev,
-      ]);
-
+      setStorage((prev) => [{ ...data, billing_mode: units > 0 ? "unit" : "m3" }, ...prev]);
       setModal(null);
-
-      showToast(
-        "Хранение сохранено."
-      );
+      showToast("Хранение сохранено.");
     } catch (error) {
       showError(error);
     }
+  };
+
+  const deleteShipment = async (id) => {
+    if (!window.confirm("Удалить эту отгрузку?")) return;
+    try {
+      const { error } = await supabase.from("shipments").delete().eq("id", id);
+      if (error) throw error;
+      setShipments((prev) => prev.filter((x) => x.id !== id));
+      showToast("Отгрузка удалена.");
+    } catch (error) { showError(error); }
+  };
+
+  const deleteStorage = async (id) => {
+    if (!window.confirm("Удалить эту запись хранения?")) return;
+    try {
+      const { error } = await supabase.from("storage_records").delete().eq("id", id);
+      if (error) throw error;
+      setStorage((prev) => prev.filter((x) => x.id !== id));
+      showToast("Запись хранения удалена.");
+    } catch (error) { showError(error); }
+  };
+
+  const deleteClient = async (client) => {
+    if (!window.confirm(`Удалить клиента «${client.name}» и все его операции?`)) return;
+    try {
+      // Удаляем зависимые записи в безопасном порядке.
+      const tables = [
+        ["cooperation_requests", setRequests],
+        ["shipments", setShipments],
+        ["storage_records", setStorage],
+        ["service_tariffs", setTariffs],
+        ["products", setProducts],
+      ];
+      for (const [table] of tables) {
+        const { error } = await supabase.from(table).delete().eq("client_id", client.id);
+        if (error) throw error;
+      }
+      const { error } = await supabase.from("clients").delete().eq("id", client.id);
+      if (error) throw error;
+      setClients((prev) => prev.filter((x) => x.id !== client.id));
+      setRequests((prev) => prev.filter((x) => x.client_id !== client.id));
+      setShipments((prev) => prev.filter((x) => x.client_id !== client.id));
+      setStorage((prev) => prev.filter((x) => x.client_id !== client.id));
+      setTariffs((prev) => prev.filter((x) => x.client_id !== client.id));
+      setProducts((prev) => prev.filter((x) => x.client_id !== client.id));
+      if (selectedClientId === client.id) setSelectedClientId("");
+      showToast("Клиент и его данные удалены.");
+    } catch (error) { showError(error); }
   };
 
   const updateRequest = async (
@@ -6167,6 +6163,8 @@ function App() {
                   clientId
                 )
               }
+              onDeleteClient={deleteClient}
+              onDeleteStorage={deleteStorage}
             />
           )}
 
@@ -6190,6 +6188,7 @@ function App() {
               onAddShipment={() =>
                 openShipmentModal()
               }
+              onDeleteShipment={deleteShipment}
             />
           )}
 
